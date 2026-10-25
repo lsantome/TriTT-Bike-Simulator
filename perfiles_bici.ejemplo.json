@@ -1,0 +1,20 @@
+[
+  {
+    "nombre": "Bici calibrada (recorrido 2, 2025-2026)",
+    "masa_total": 90.0,
+    "cda": 0.261,
+    "delta_cda": 0.25,
+    "eficiencia": 0.975,
+    "crr_liso": 0.0035,
+    "crr_normal": 0.0045,
+    "crr_rugoso": 0.007,
+    "superficie": "normal",
+    "presion_neumaticos": 7.0,
+    "etrto": "28-622",
+    "perimetro_mm": null,
+    "inercia_ruedas": 0.14,
+    "origen_cda": "estimador de pares de ida y vuelta sobre las 3 salidas coherentes del recorrido 2 (30-mar-2025: 0,2611; 06-abr-2025: 0,2661; 19-abr-2026: 0,2550); media 0,2607, dispersion 2,2 %. Validacion cruzada por tiempo: error medio 0,94 %, maximo 1,39 %. Excluidas 04-may-2025 y 08-jun-2025 por el examen de coherencia (criterio 30). CdA de posicion de entrenamiento, no de carrera.",
+    "calibrado": true,
+    "actualizado": "2026-10-05"
+  }
+]

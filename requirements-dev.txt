@@ -1,0 +1,4 @@
+# Dependencias para ejecutar los tests (la app no las necesita).
+-r requirements.txt
+pytest>=8.0
+scipy>=1.11        # solución de referencia independiente en los tests de física
