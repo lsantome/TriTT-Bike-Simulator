@@ -1,1 +1,12 @@
+# Tema claro por defecto (criterio 21). Los colores son los tokens de `app/theme.py`:
+# fijarlos aquí hace que el cromo propio de Streamlit (acentos, controles) salga ya con la
+# paleta, en vez de con su azul de fábrica. El modo oscuro lo activa el interruptor de la barra
+# lateral, que inyecta la variante oscura de los mismos tokens, gráficos incluidos.
+[theme]
+base = "light"
+primaryColor = "#0F5F78"
+backgroundColor = "#F2F5F7"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#1B2733"
+font = "sans serif"
 
