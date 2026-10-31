@@ -1,6 +1,469 @@
-# Simulador de ciclismo para triatlón (sin drafting) y contrarreloj
+# Cycling simulator for triathlon (non-drafting) and time trial
 
 [![tests](../../actions/workflows/tests.yml/badge.svg)](../../actions/workflows/tests.yml)
+
+**[English](#english) · [Español](#español)**
+
+---
+
+# English
+
+A personal-use tool that does two different jobs:
+
+1. **Estimates the drag coefficient (CdA)** of your bike and riding position from a real `.fit`
+   activity, by closing the energy balance over flat segments ridden in both directions.
+2. **Predicts a race**: given the route **GPX**, that CdA and a **power-by-gradient profile**
+   (climb / flat / descent), it computes time, speed and power per segment with a physical model
+   and editable parameters.
+
+Everything the tool produces comes with its uncertainty margin. That is the design principle of the
+project: **no number is ever presented on its own**, and anything unverified is said to be so.
+
+> **What this repository is and what it is not.** It is a **Streamlit (Python)** application that
+> runs on your own computer via `./run.sh` or `run.bat` and opens your browser on `localhost`. It
+> is **not an installable PWA, it is not published on GitHub Pages and there is no APK**: Streamlit
+> needs a Python process behind it, and a PWA is a set of static files. Rewriting the model in
+> JavaScript (or running it in the browser with Pyodide/stlite) is a separate project that would
+> require revalidating the physics against the five real activities.
+
+## Features
+
+**CdA estimation from your own activities**
+
+- Reads `.fit` files with GPS and power and estimates CdA by closing the energy balance, integrating
+  interval by interval: it assumes neither constant speed nor constant gradient.
+- **Automatic search for reliable segments**: sweeps the activity in windows from 1 to 5 km, keeps
+  the flat, fast, non-overlapping ones, and for each one locates **the return pass along the same
+  road**. Averaging out and back is the only way to cancel the wind without modelling it.
+- **Manual selection** of a segment, by dragging over the route profile or with a slider.
+- Every estimate comes with its **uncertainty** (propagating altitude error, Crr error and power
+  meter bias) and with a **validity diagnosis** of the segment: if it is not usable, it says so and
+  does not present the value as good.
+- **Activity coherence check**: before accepting a CdA, it tests whether the ride is explainable by
+  the model or whether it was faster than the recorded power allows (tailwind, drafting, group).
+  See [does this activity qualify?](#does-this-activity-qualify-the-coherence-check).
+- **Impossible pairs rejected and shown**: an out-and-back pair whose speeds differ too much is not
+  measuring wind, it is measuring gradient; it is rejected with its reason written out.
+- A table with **one row per segment** and CSV download, including the breakdown of uncertainty by
+  source.
+- The result is carried over to the simulator **with one button**, where it becomes an editable
+  value.
+
+**Race prediction**
+
+- **GPX** loading, resampling to constant distance, elevation and track smoothing.
+- **Power-by-gradient profile** with a continuous transition, editable threshold and width.
+- Output with **total time, average speed, per-segment table and charts, NP, VI and IF**.
+- **Curvature speed limit** and descent speed cap, with maximum braking propagated backwards; if
+  the limit cuts the speed, the applied power is reduced to what is needed, and that is reflected in
+  NP/VI/IF.
+- **Two uncertainty bands** that measure different things (model and day), both derived from
+  cross-validation with real activities. See [how much to trust it](#how-much-you-can-trust-the-predicted-time).
+- **Sensitivity report**: the effect on total time of each parameter at ±10 %, contrasted against
+  your own route data.
+- **Named bike profiles** that record where their CdA came from.
+- With no GPX loaded, a **synthetic example route** (~26 km) to try it out.
+
+**Across both modules**
+
+- **Spanish and English**, with a sidebar selector: labels, tooltips for all 40 parameters, tabs,
+  messages and estimator warnings. Downloadable CSVs keep the technical column names (`tiempo_s`,
+  `cda`, `desnivel_m`) in both languages, deliberately, so spreadsheets do not break.
+- **Light theme by default and a complete dark theme**, both derived from the same tokens, charts
+  included.
+- **Its own design system** in a single module (`app/theme.py`), with an explicit visual language
+  for uncertainty: solid narrow band = estimated from data; hatched wide band = margin of the day or
+  unverified claim.
+- **Core with no interface dependencies** (`core/`): the physics, the estimator and the tables can
+  be used and verified without Streamlit.
+- **372 automated tests** tied to the 32 acceptance criteria of the specification.
+
+## Requirements
+
+| | |
+|---|---|
+| **Python** | 3.9 or later. The launchers detect it and, if missing, say so with the download link |
+| **System** | Windows, macOS or Linux |
+| **App dependencies** | `numpy`, `pandas`, `streamlit`, `plotly`, `fitdecode` (`requirements.txt`) |
+| **Test dependencies** | the above plus `pytest` and `scipy` (`requirements-dev.txt`) |
+| **Disk** | about 300 MB once the virtual environment is created |
+| **Browser** | any recent one; the app opens on `localhost` |
+
+`scipy` is for the tests only, which use it as an independent reference solution. **Starting the app
+does not install test dependencies**, and a test checks that everything the app and the core import
+is declared in `requirements.txt`.
+
+To estimate CdA you also need a `.fit` activity **with GPS and power**, preferably with some flat
+stretch ridden in both directions.
+
+## How to run it
+
+**Without the command line** (recommended):
+
+- **Windows:** double-click `run.bat`
+- **macOS / Linux:** `./run.sh` in a terminal (on macOS, if you prefer double-clicking, rename the
+  file to `run.command`)
+
+The first run creates a virtual environment in `.venv` and installs the dependencies (a couple of
+minutes); later runs start straight away. If you clone the repository on macOS or Linux and
+`./run.sh` will not start, give it execute permission with `chmod +x run.sh`.
+
+| Option | What it does |
+|---|---|
+| `run.sh` / `run.bat` | opens the application in the browser |
+| `run.sh --estimador` / `run.bat --estimador` | starts directly in the CdA estimation module |
+| `run.sh --tests` | installs the test dependencies and runs the 372 tests |
+| `run.sh --reinstalar` | rebuilds the environment from scratch |
+| `run.sh --reinstalar --tests` | both |
+
+By hand, if you prefer:
+
+```bash
+pip install -r requirements.txt          # app
+pip install -r requirements-dev.txt      # app + tests
+streamlit run app/streamlit_app.py       # from the project root
+python -m pytest -q                      # 372 tests
+```
+
+The initial module can also be set by adding `?modo=estimador` to the URL.
+
+> `run.sh` has been tested end to end (environment built from scratch, application responding).
+> **`run.bat` could not be run on Windows**: it is validated by inspection and by a static lint of
+> the usual `cmd` pitfalls. If it fails for you, send whatever the window says.
+
+## The two modules and the intended workflow
+
+They are chosen with the **What do you want to do** selector in the sidebar:
+
+| Module | Input | Output | Parameters it asks for |
+|---|---|---|---|
+| **CdA estimation** | one `.fit` activity | the CdA of that bike in that position, with its margin | 23 |
+| **Race prediction** | the route GPX and a CdA | time, speed and power per segment | 40 |
+
+The order matters, because **CdA is an input to the prediction and it is the parameter that moves it
+most**: a prediction made with the default CdA is not a prediction of your bike.
+
+1. In the **estimation** module, upload an activity with the setup and position you intend to race
+   with, and with some flat stretch ridden in both directions. Press **🔍 Find reliable segments**.
+2. Read the coherence verdict and the warnings **before** the number. If the activity does not
+   qualify, neither does the CdA.
+3. Press the button to **apply that CdA**. It lands in the simulator as an editable field: use it as
+   is, or correct it by hand if your race setup is not exactly the one in the activity.
+4. In the **prediction** module, upload the race GPX and state the power you plan to hold.
+
+The estimation module **does not ask for a GPX** nor for parameters that play no part in its
+calculation. Above all, **it does not ask for CdA**: that is what it estimates, and asking for it as
+an input would be circular. It does not ask for the power profiles, FTP, the speed and curvature
+limits or the route resampling either.
+
+That split lives in the core (`core.params.specs_for_module`) and an **empirical** test guards it:
+changing a parameter the module does not show must not move the estimate, and changing one it does
+show must move it. The list is not maintained by hand.
+
+## What the CdA this tool estimates actually is (and what it is not)
+
+This is the most important thing to understand in order to use the numbers sensibly.
+
+In the model, `CdA` is the **drag area** (m², the product of the shape coefficient and the frontal
+area) multiplying the aerodynamic term `½·ρ·CdA·v²`. But the value the tool **estimates** is not a
+wind-tunnel CdA: it comes from closing the energy balance of a real segment. Whatever came in
+through the pedals, minus what went into climbing, rolling resistance and changes in kinetic energy,
+is attributed entirely to the aerodynamic term:
+
+```
+∫ η·P dt − Σ ½·m_ef·Δ(v²) − m·g·Σ Δh − ∫ Crr(v)·m·g·cosθ·v dt  =  ∫ ½·ρ·CdA·v³ dt
+```
+
+Because CdA is **the residual that makes that equality balance**, *everything* that opposed forward
+motion and is not named separately by the model ends up inside it:
+
+| Inside the estimated CdA | How much it weighs |
+|---|---|
+| The real aerodynamics (bike, body, helmet, clothing, position) | what you actually want to know |
+| **The net wind of the day** | **by far the largest term**: 1 m/s shifts the result by roughly ±0.04–0.06 m², more than all the other errors put together |
+| Drafting behind other riders, vehicles or a group | can be enormous and is indistinguishable from wind |
+| Altimeter error | ±1 m of elevation change over the segment propagates into the result; on short, slow or hilly segments it swallows the estimate whole |
+| The gap between the chosen Crr and the real road surface | ±0.0005 of Crr, propagated |
+| Power meter bias | ±1.5 % of power, propagated |
+| Any residual error of the model itself | goes to the same place, by construction |
+
+So, strictly speaking, **what comes out is an effective coefficient of resistance to forward
+motion** for that bike, that position and conditions similar to those of the activity — not a
+physical property of the bike. Practical consequences:
+
+- **Wind is removed by pairing, not by modelling.** It is not an input to the model. Because it is a
+  **bias and not noise**, it does not enter the uncertainty: it is shown separately (hatched band)
+  and it cancels to first order by averaging an outbound stretch with the same stretch inbound. That
+  is why the recommended value is the one from **pairs**, not from an isolated segment.
+- **The bearing of each segment gives the wind away.** If segments one way give a low CdA and those
+  the other way give a high one, that is wind and not your position. The table carries that column
+  for exactly that reason.
+- **If you change kit or position, it has to be estimated again.** What you wear is not a model
+  parameter: it is inside the CdA.
+- **Do not compare it with manufacturer or wind-tunnel figures.** They do not measure the same
+  thing.
+- **A CdA obtained in training is not the racing one.** The example profile shipped with this
+  repository comes from 4-hour rides at 210-226 W and 31-33 km/h: it is a training-position CdA.
+
+### Does this activity qualify? The coherence check
+
+Any fitting method **always** returns a number: it looks for the CdA that makes the books balance
+and it finds one. What it does not tell you is whether that number means anything. If one day you
+went faster than the power you recorded allows, the fit lowers the CdA until the total matches, and
+the result is not an aerodynamic figure but the residual of a fit that does not close.
+
+The check detects that signature by separating the error **by gradient band**, and warns if:
+
+- the resulting CdA falls **outside the plausible range 0.20–0.35 m²**, or
+- the pattern **flat too slow (error ≥ +5 %) and descents too fast (≤ −4 %)** appears, which is what
+  a ride with a tailwind, drafting or a group produces, and which a mere CdA error cannot produce
+  (not with both signs at once).
+
+Both rules are needed: one of the five reference rides has its CdA inside the range and only the
+pattern catches it. The thresholds are backed by data: across the three coherent rides the flat
+error does not exceed −0.7 % and the descent error +0.8 %; across the two incoherent ones the flat
+is at +15.8 % and +29.6 % and the descents at −7.9 % and −18.4 %. There is an **order of magnitude**
+between the worst coherent ride and the best incoherent one.
+
+The diagnosis is built in the core (`core/coherence.py`), not in the interface, and it uses a fixed
+configuration on purpose: the verdict must not change because someone adjusted a parameter in order
+to predict a race.
+
+### Recommended protocol
+
+1. Use only rides from **the same bike**.
+2. **Put each one through the coherence check** and leave out those that raise a warning. Record the
+   reason with the figure that backs it, not with a hypothesis.
+3. Obtain the CdA from the **out-and-back pairs**, which is the reproducible method (3.3 % spread
+   across rides, 1.9 % with the impossible-pair filter, versus 21.3 % for the total-time fit). The
+   total-time fit remains an **independent cross-check**, not the source of the figure.
+4. Use **at least 2** coherent rides and look at the spread between them, not just the best fit.
+5. **Do not average incoherent rides** with the good ones: they would inject the wind of their day
+   into the parameter.
+
+### When a segment is not accepted
+
+Minimums for a segment to count as usable: **1 km**, 45 s, 25 km/h average, at least **half** of the
+dissipated energy being aerodynamic, and uncertainty **≤ ±0.030 m²**. A segment that fails any of
+these is flagged as not usable with the reason written out, not hidden.
+
+## The physical model
+
+For each segment of length `d` over the road, with constant power `P` and speeds `v₀ → v₁`:
+
+```
+½·m_ef·(v₁² − v₀²) = d·( η·P / v̄ − ½·ρ·CdA(v̄)·(v₀²+v₁²)/2 − Crr(v̄)·m·g·cosθ ) − m·g·Δh
+```
+
+with `v̄ = (v₀+v₁)/2` and `m_ef = m + I/r²` (wheel inertia). This form is exact for constant power
+and uniform acceleration. It is solved per segment with regula falsi (Illinois); where several
+solutions exist (the CdA transition zone) the one closest to `v₀` is chosen, following the real
+trajectory. The segment time is `d·2/(v₀+v₁)`.
+
+| Element | Model |
+|---|---|
+| **Mass** | a single total value (rider + bike + equipment). The split enters no equation: only the sum |
+| **Power by gradient** | `P(g)` = flat / climb / descent with a continuous *smoothstep* transition; threshold (±2 %) and width editable |
+| **CdA(v)** | `CdA + ΔCdA·σ((v₀ − v)/w)`, a logistic centred on 20 km/h (default ΔCdA = +0.25 m², w = 1 km/h). Continuous, no jumps |
+| **Crr(v, p)** | `Crr_ref·(p_ref/p)^exp + crr1·(v − 29 km/h)` per surface (smooth / normal / rough); `Crr_ref` is defined at 29 km/h and at the reference pressure. Floor at 0.5·Crr_ref |
+| **Wheel** | the circumference comes from the ETRTO size (default 28-622) or is entered as measured with the «manual» option; the radius is derived from it. It only enters rotational inertia and moves the time by less than 0.001 % |
+| **ρ** | humid air: temperature, humidity (Magnus), sea-level pressure corrected for the altitude of each point (ISA) |
+| **Curvature limit** | `v ≤ √(a_lat/κ)` (on by default, `a_lat` = 3 m/s²), with maximum braking (3 m/s²) propagated backwards; κ from the heading derivative with dilation towards the ends of the arc. Reliable for R ≥ max(10 m, track window / 7); below that it is **optimistic** (+4.5 % speed at R = 8 m, +16.3 % at R = 4 m) |
+| **Speed cap** | 100 km/h by default |
+| **Applied power** | if the limit cuts the speed, the applied power is reduced to what is needed (≥ 0), and that is reflected in NP/VI/IF |
+| **NP / VI / IF** | NP: 30 s rolling mean at 1 Hz and 4th-power mean; VI = NP/mean; IF = NP/FTP |
+
+**GPX smoothing:** resampling to constant distance (20 m), Gaussian smoothing of elevation (150 m
+window) and of the track (60 m), gradient clipped to ±30 %.
+
+### Parameters (defaults: sea level, A Coruña)
+
+| Category | Main parameters | Advanced |
+|---|---|---|
+| **Rider** | total mass (**mandatory**, no default) · P climb/flat/descent 220/200/0 W · FTP (optional) | gradient threshold 2 %, transition width 1 %, initial speed 18 km/h |
+| **Equipment** | CdA 0.27 m² · ΔCdA 0.25 m² · η 0.975 · wheel ETRTO 28-622 (or measured circumference) | position threshold 20 km/h, width 1 km/h, inertia 0.14 kg·m² |
+| **External variables** | temperature 15 °C · humidity 75 % · surface (smooth/normal/rough) · pressure 7.0 bar · segments per km · max speed 100 km/h · curvature limit | atmospheric pressure 1013.25 hPa, manual density, Crr per surface, variation of Crr with v, a_lat, braking, smoothing windows, step, impossible-pair threshold |
+
+The main/advanced classification is a design decision. The **Sensitivity** tab contrasts it against
+your own route data (`sugerencia` column).
+
+## Bike profiles
+
+Each bike has its own CdA and its own masses, so the application saves **named profiles**
+(`perfiles_bici.json`, next to the project; it can be changed with the `SIMCICLISMO_PERFILES`
+environment variable). A profile fixes masses, CdA, ΔCdA, η, Crr, surface and inertia, and also
+records **where the CdA came from**: which activities produced it and whether it is calibrated or a
+default value. A CdA saved without that provenance is not traceable and the application marks it as
+*not calibrated*.
+
+`perfiles_bici.ejemplo.json` holds the profile obtained from the out-and-back pairs over the 3
+coherent rides of the reference route (CdA 0.261 m², total mass 90 kg). Rename it to
+`perfiles_bici.json` to use it. It is a **training-position** CdA: to race, estimate your own with
+an activity carrying the race setup and position.
+
+## How much you can trust the predicted time
+
+The application always shows the time with its margin, using **two bands that measure different
+things** — which is why both are given, rather than their average or the better of the two:
+
+| Band | Value | What it measures and where it comes from |
+|---|---|---|
+| **Model precision** | **±1.4 %** | Leave-one-out cross-validation with the 3 coherent rides of the reference route; mean error 0.94 %, maximum 1.39 %. This is what the physical model is worth on the same bike and route when the day is unremarkable |
+| **Margin of the day** | **±15 %** | Obtained with the protocol the tool itself recommends: calibrating only with the 3 coherent rides and predicting any day, including the 2 incoherent ones. Worst error **14.27 %**. This is what not knowing the wind costs |
+
+Tables and CSVs carry four extra columns for every time column (`_min_modelo`, `_max_modelo`,
+`_min_dia`, `_max_dia`), so that no time leaves the tool without its margin.
+
+**On a new route there is no verified band.** The margin of the day is a **floor**, not an estimate:
+no validation has been able to cross routes, because there are no rides of this bike on another
+course. The ±11 % this table used to give for a new route was withdrawn as incoherent: it was
+*smaller* than the wind margin already observed on the calibration route itself.
+
+### Results with the real data (5 rides on the same route, Mar 2025 to Apr 2026)
+
+The model was validated by separating the error **by gradient band**, which is more demanding than
+total time: a global fit can be right by cancelling opposite errors, and this cannot.
+
+| Gradient band | 30 Mar | 06 Apr | 19 Apr 26 |
+|---|---|---|---|
+| descent > 6 % | −7.7 % | −1.6 % | +0.6 % |
+| descent 3-6 % | +1.0 % | +0.2 % | +1.2 % |
+| descent 1-3 % | +0.5 % | −0.4 % | +1.3 % |
+| flat ±1 % | −2.5 % | −0.7 % | −1.3 % |
+| climb 1-3 % | +0.9 % | +0.1 % | +1.0 % |
+| climb 3-6 % | +1.1 % | +1.0 % | −0.3 % |
+| climb > 6 % | +0.4 % | −0.5 % | −1.8 % |
+
+With a single CdA the error stays **within ±2.5 % across all seven bands**, from −6 % to +6 %
+gradient. The only weak spot is the descent steeper than 6 % (4.6 % of the route), where what limits
+the rider is braking and visibility, not physics.
+
+And the CdA by both methods, across the five rides:
+
+| Ride | by total-time fit | by out-and-back pairs |
+|---|---|---|
+| 30 Mar 2025 | 0.2758 | 0.2611 ± 0.0049 |
+| 06 Apr 2025 | 0.2621 | 0.2661 ± 0.0087 |
+| 04 May 2025 | **0.1550** | 0.2435 ± 0.0188 |
+| 08 Jun 2025 | **0.2131** | 0.2542 ± 0.0095 |
+| 19 Apr 2026 | 0.2583 | 0.2550 ± 0.0090 |
+| **spread** | **21.3 %** | **3.3 %** (1.9 % with the impossible-pair filter) |
+
+**The out-and-back pairs are reproducible and the total-time fit is not**, because the pairs cancel
+the mean wind while total time absorbs it whole into the CdA. Hence the protocol uses the pairs as
+the source of the figure. The 19 Apr 2026 ride agrees with the 2025 ones by both methods thirteen
+months later: the CdA turns out to be stable over a year.
+
+Isolated segments, one by one, give between 0.18 and 0.39 m² depending on the segment. That is **not
+method spread**: it is the wind, and it shows up in the bearings. On top of that, **the selection
+bias is quantified and the application declares it**: demanding high speed and little elevation
+change is not a neutral sample — the chosen segments run at 36.3 km/h against the 31.4 km/h of the
+route, with a mean gradient of −0.16 %. They are precisely the segments with a tailwind or a gentle
+descent, which is why an isolated segment, however reliable its diagnosis looks, gives a low CdA.
+
+The full report, with the per-band tables for each ride and the diagnosis of the two incoherent
+ones, is in [`simulador-ciclismo-triatlon.validacion.md`](simulador-ciclismo-triatlon.validacion.md)
+(Spanish).
+
+### Finding: elevation noise matters more than expected
+
+Total-time error (%) against the noise-free route, by smoothing window and i.i.d. elevation noise
+(σ), on a rolling 30 km route with the default power profile (maximum over 4 seeds):
+
+| σ noise | 100 m | 150 m (default) | 200 m | 300 m |
+|---|---|---|---|---|
+| 1 m | 0.36 | 0.63 | 0.53 | 0.33 |
+| 2 m | **3.06** | 0.78 | 0.32 | 0.59 |
+| 3 m | **8.23** | 2.35 | 0.83 | 0.41 |
+| 5 m | **15.06** | 7.17 | 3.16 | 1.15 |
+
+With a 10 m window the error is around 20 %. **If your GPX has noisy GPS elevation (σ ≥ 3 m), raise
+the smoothing window** (advanced) or use a GPX with barometric or corrected elevation. Part of the
+error comes from `P_descent = 0 W` turning gradient noise into fictitious descents.
+
+## Known limitations
+
+- **Wind is not an input to the model.** The wind of the real activity ends up absorbed into the
+  estimated CdA (a bias, not noise). It is the underlying limitation of the whole tool.
+- **The estimated CdA is an effective coefficient**, not a property of the bike: it includes wind,
+  drafting, altimeter error, road surface and power meter bias. See
+  [the dedicated section](#what-the-cda-this-tool-estimates-actually-is-and-what-it-is-not).
+- **A single CdA** per bike (the switch to an upright position is modelled by speed alone), and it
+  is the largest source of uncertainty: ±0.02 m² moves the time more than any fine adjustment of the
+  terrain.
+- **Transfer between routes is unverified:** the five reference rides are the same course, with
+  94-98 % overlap. A ride of the same bike on another course is missing to close this.
+- **Racing position is unverified:** the available data is from training.
+- **Instantaneous speed:** still off by ±3 km/h MAE even when the total time is right.
+- **`crr1` values** (variation of Crr with speed): estimates without solid experimental backing;
+  calibrate them or leave them at the default.
+- **Surface:** the GPX does not carry it; it is chosen globally and overridden by hand per km block.
+- **Tyre pressure:** the model only lowers Crr as pressure rises. It does not represent that on a
+  rough surface, above a certain pressure, the whole thing becomes slower. On rough surfaces at high
+  pressure the result is optimistic.
+- **Mass is mandatory:** the application will not simulate until the total mass is entered.
+- **More mass can be faster** on routes with descents at 0 W (gravity scales with mass and
+  aerodynamic drag does not).
+- **Tables in dark mode:** they stay light, because Streamlit draws them on a canvas the CSS does not
+  reach. This is a declared exception.
+- **Scope of this version:** direct simulation only. No pacing optimiser, no inverse mode, no DEM
+  and no surface extraction from OSM.
+- GPX XML is parsed with `xml.etree` (personal use; do not expose it to untrusted files).
+
+## Repository layout
+
+```
+core/                 Python/numpy core, no interface dependencies
+  params.py           parameters, defaults, ranges, categories, validation (single source of truth)
+  atmosphere.py       air density (temperature, humidity, pressure, altitude)
+  route.py            GPX reading, resampling, smoothing, gradient and curvature
+  physics.py          power by gradient, CdA(v), Crr(v) and per-segment solving
+  simulate.py         full simulation + per-km-block table
+  metrics.py          average power, NP, VI, IF
+  sensitivity.py      ±10 % sensitivity of each parameter
+  cda_estimator.py    CdA estimation: per segment, automatic search for flat segments
+                      and out-and-back pairing along the same road
+  coherence.py        activity coherence check: does it qualify for estimating?
+  validation.py       .fit reading, replay of the real power and total-time fitting
+  profiles.py         bike profiles (mass, CdA, Crr, η) with the provenance of the CdA
+  wheels.py           ETRTO sizes and wheel circumference
+  uncertainty.py      uncertainty bands obtained in the real validation
+  exports.py          tables the application shows and downloads, with the bands included
+  i18n.py             English translations and interface strings
+  synthetic.py        synthetic routes (tests and example route)
+app/streamlit_app.py  Streamlit interface, with the two modules
+app/theme.py          design system: colour tokens, typefaces and the numeric-reading
+                      and uncertainty-band components
+.streamlit/config.toml  light theme by default and Streamlit top bar hidden
+tests/                automated tests of the acceptance criteria
+  fixtures/           5 real activities, reduced and anonymised; see their README
+docs/calidad/         defect registry and independent reviews
+simulador-ciclismo-triatlon.spec.md       the specification and its 32 acceptance criteria
+simulador-ciclismo-triatlon.validacion.md validation report with real data
+```
+
+## Tests
+
+```bash
+python -m pytest -q        # 372 tests
+run.sh --tests            # installs the test dependencies and runs them
+```
+
+They cover: physics (against an analytical solution and against an independent RK4 integration),
+speed and curvature limits, continuity of CdA and of power, monotonicity, elevation noise, loop
+symmetry, parameters and range validation, sensitivity, the `.fit` reader (with a minimal FIT writer
+of our own), the CdA estimator and out-and-back pairing, the coherence check, bike profiles,
+uncertainty bands, wheels, pressure, exports, both languages, the design system and the interface
+with `streamlit.testing` (including the estimator tab end to end, uploading a real `.fit`).
+
+The specific thresholds of each test and the criterion each one answers are in
+[`simulador-ciclismo-triatlon.spec.md`](simulador-ciclismo-triatlon.spec.md) (Spanish). The quality
+status, with the defect registry and the independent reviews, is in
+[`docs/calidad/README.md`](docs/calidad/README.md).
+
+---
+
+# Español
 
 Herramienta de uso personal que hace dos trabajos distintos:
 
@@ -20,8 +483,6 @@ de diseño del proyecto: **ningún número se presenta solo**, y lo que no está
 > detrás, y una PWA es un conjunto de ficheros estáticos. Reescribir el modelo en JavaScript (o
 > correrlo en el navegador con Pyodide/stlite) es un proyecto aparte que obligaría a revalidar la
 > física contra las cinco actividades reales.
-
----
 
 ## Características
 
@@ -75,8 +536,6 @@ de diseño del proyecto: **ningún número se presenta solo**, y lo que no está
   pueden usar y verificar sin Streamlit.
 - **372 tests automáticos** ligados a los 32 criterios de aceptación de la especificación.
 
----
-
 ## Requisitos
 
 | | |
@@ -94,8 +553,6 @@ núcleo esté declarado en `requirements.txt`.
 
 Para estimar el CdA necesitas, además, una actividad en `.fit` **con GPS y potencia**, y
 preferiblemente con algún tramo llano recorrido en los dos sentidos.
-
----
 
 ## Cómo se ejecuta
 
@@ -132,8 +589,6 @@ También se puede fijar el módulo inicial añadiendo `?modo=estimador` a la URL
 > **`run.bat` no se ha podido ejecutar en Windows**: está validado por inspección y por un lint
 > estático de las trampas de `cmd`. Si te falla, manda lo que diga la ventana.
 
----
-
 ## Los dos módulos y el flujo pensado
 
 Se eligen con el selector **Qué quieres hacer** de la barra lateral:
@@ -164,8 +619,6 @@ recorrido.
 Esa partición vive en el núcleo (`core.params.specs_for_module`) y la vigila un test **empírico**:
 cambiar un parámetro que el módulo no muestra no mueve la estimación, y cambiar uno de los que
 muestra sí la mueve. La lista no se mantiene a mano.
-
----
 
 ## Qué es el CdA que estima esta herramienta (y qué no es)
 
@@ -254,8 +707,6 @@ Mínimos para considerar utilizable un tramo: **1 km**, 45 s, 25 km/h de media, 
 **mitad** de la energía disipada sea aerodinámica e incertidumbre **≤ ±0,030 m²**. Un tramo que no
 los cumpla aparece marcado como no utilizable y con el motivo escrito, no escondido.
 
----
-
 ## El modelo físico
 
 Para cada tramo de longitud `d` sobre el firme, con potencia constante `P` y velocidades `v₀ → v₁`:
@@ -296,8 +747,6 @@ real. El tiempo del tramo es `d·2/(v₀+v₁)`.
 La clasificación principal/avanzado es una decisión de diseño. La pestaña **Sensibilidad** la
 contrasta con los datos de tu ruta (columna `sugerencia`).
 
----
-
 ## Perfiles de bici
 
 Cada montura tiene su propio CdA y sus propias masas, así que la aplicación guarda **perfiles con
@@ -311,8 +760,6 @@ calibrar*.
 salidas coherentes del recorrido de referencia (CdA 0,261 m², masa total 90 kg). Renómbralo a
 `perfiles_bici.json` para usarlo. Es un CdA de **posición de entrenamiento**: para competir,
 estima el tuyo con una actividad que lleve el montaje y la posición de carrera.
-
----
 
 ## Cuánto te puedes fiar del tiempo predicho
 
@@ -395,8 +842,6 @@ Con ventana de 10 m el error ronda el 20 %. **Si tu GPX tiene elevación GPS rui
 la ventana de suavizado** (avanzado) o usa un GPX con elevación barométrica o corregida. Parte del
 error viene de que `P_descenso = 0 W` convierte el ruido de pendiente en descensos ficticios.
 
----
-
 ## Limitaciones conocidas
 
 - **El viento no es una entrada del modelo.** El de la actividad real queda absorbido en el CdA
@@ -426,8 +871,6 @@ error viene de que `P_descenso = 0 W` convierte el ruido de pendiente en descens
 - **Alcance de esta versión:** solo simulación directa. Sin optimizador de pacing, sin modo
   inverso, sin DEM y sin extracción de superficie desde OSM.
 - XML del GPX parseado con `xml.etree` (uso personal; no exponer a archivos no confiables).
-
----
 
 ## Estructura del repositorio
 
@@ -460,8 +903,6 @@ docs/calidad/         registro de defectos y revisiones independientes
 simulador-ciclismo-triatlon.spec.md       especificación y sus 32 criterios de aceptación
 simulador-ciclismo-triatlon.validacion.md informe de validación con datos reales
 ```
-
----
 
 ## Tests
 
