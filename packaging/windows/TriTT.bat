@@ -11,16 +11,20 @@ rem ===========================================================================
 setlocal EnableExtensions
 
 rem Trabajar siempre desde la carpeta del paquete, pase lo que pase con el
-rem directorio desde el que se haya llamado al lanzador. Lo necesita el
-rem `python -m streamlit`, que pone este directorio al principio de sys.path:
-rem es asi como la aplicacion encuentra el paquete `core`.
+rem directorio desde el que se haya llamado al lanzador. NO es lo que hace que
+rem se encuentre el paquete `core`: de eso se encarga el fichero `._pth` del
+rem interprete embebido, que es lo unico que define sus rutas de busqueda. El
+rem `cd` hace falta para que Streamlit encuentre `.streamlit\config.toml` y
+rem para que las rutas relativas de la aplicacion apunten donde deben.
 cd /d "%~dp0"
 
 set "PYTHON=%~dp0python\python.exe"
 if not exist "%PYTHON%" goto :sin_python
 
-rem Un PYTHONHOME o un PYTHONPATH heredados del sistema desvian el interprete
-rem embebido hacia otra instalacion de Python y rompen las importaciones.
+rem Por higiene, no por necesidad: el interprete embebido ignora PYTHONPATH y
+rem PYTHONHOME mientras exista su `._pth`. Se vacian igualmente para que, si
+rem algun dia se dejara de usar el `._pth`, un valor heredado del sistema no
+rem desvie el interprete a otra instalacion de Python.
 set "PYTHONHOME="
 set "PYTHONPATH="
 set "PYTHONNOUSERSITE=1"

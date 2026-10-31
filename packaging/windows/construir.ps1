@@ -58,13 +58,23 @@ Invoke-WebRequest -Uri $UrlPython -OutFile $ZipPython -UseBasicParsing
 Expand-Archive -Path $ZipPython -DestinationPath $DirPython -Force
 Remove-Item $ZipPython
 
-# El paquete embebido viene con `import site` desactivado y sin `Lib\site-packages` en la ruta de
-# búsqueda, así que no encontraría las dependencias. Hay que habilitar las dos cosas en el `._pth`.
-Paso "Habilitando site-packages en el intérprete embebido"
+# Las rutas de búsqueda del Python embebido las fija SOLO su fichero `._pth`: su presencia
+# sustituye al cálculo normal de rutas, y con él se van el directorio actual, el del script y la
+# variable PYTHONPATH, que ese intérprete ignora por completo. De ahí que haya que escribir aquí
+# las dos rutas que la aplicación necesita, porque no hay ninguna otra forma de añadirlas:
+#
+#   Lib\site-packages  las dependencias que se instalan en el paso siguiente.
+#   ..                 la raíz del paquete, donde están `app` y `core`.
+#
+# Lo segundo lo descubrió la primera construcción en Actions, que falló con
+# `ModuleNotFoundError: No module named 'core'`. La intuición de que bastaba con que el lanzador
+# se situara en la carpeta (`cd /d "%~dp0"`) es falsa justo en este intérprete. Las rutas del
+# `._pth` son relativas a la carpeta que lo contiene, que es `python\`, así que `..` es la raíz.
+Paso "Fijando las rutas de búsqueda en el intérprete embebido"
 $Pth = Get-ChildItem -Path $DirPython -Filter "python*._pth" | Select-Object -First 1
 if (-not $Pth) { throw "No encuentro el fichero ._pth del Python embebido." }
 $lineas = Get-Content $Pth.FullName | Where-Object { $_ -notmatch '^\s*#?\s*import\s+site\s*$' }
-$lineas = @($lineas) + @("Lib\site-packages", "import site")
+$lineas = @($lineas) + @("Lib\site-packages", "..", "import site")
 Set-Content -Path $Pth.FullName -Value $lineas -Encoding ASCII
 
 # --------------------------------------------------------------------------- dependencias
@@ -122,10 +132,18 @@ Copy-Item -Force (Join-Path $PSScriptRoot "LEEME.txt") (Join-Path $DirPaquete "L
 # es mejor romper el build que repartir una carpeta que no arranca.
 Paso "Comprobando que el paquete importa la aplicación"
 $exe = Join-Path $DirPython "python.exe"
-Push-Location $DirPaquete
+# La comprobación se hace a propósito DESDE OTRO DIRECTORIO. Si se hiciera desde la raíz del
+# paquete podría pasar por las rutas que el `._pth` añade o por el directorio actual, y no se
+# sabría cuál de las dos la ha salvado. Desde fuera, lo único que puede funcionar es el `._pth`.
+Push-Location $DirSalida
 try {
-    & $exe -c "import numpy, pandas, plotly, streamlit, fitdecode; from core.simulate import simulate; from core.cda_estimator import estimate_cda; print('importa correctamente')"
+    & $exe -c "import numpy, pandas, plotly, streamlit, fitdecode; from core.simulate import simulate; from core.cda_estimator import estimate_cda; from core.coherence import check_coherence; print('importa correctamente')"
     if ($LASTEXITCODE -ne 0) { throw "El paquete no puede importar la aplicación (código $LASTEXITCODE)" }
+
+    # Y que el camino real del lanzador funciona: `python -m streamlit`. Importar `streamlit` no
+    # demuestra que su CLI arranque, que es por donde entra la aplicación.
+    & $exe -m streamlit --version
+    if ($LASTEXITCODE -ne 0) { throw "El paquete no puede ejecutar 'python -m streamlit' (código $LASTEXITCODE)" }
 } finally {
     Pop-Location
 }
