@@ -229,6 +229,17 @@ def test_c14_ninguna_cifra_se_presenta_como_precision_en_una_ruta_nueva():
     assert patron_11.search("un 11 % de margen esperable")
     assert not patron_11.search("| subida > 6 % | −5,11 % | +1,02 % |")
     assert not patron_11.search("111 % de la potencia umbral")
+
+    # Marcas que demuestran que el número se menciona para decir que está retirado, no para darlo
+    # por vigente. Hay que tenerlas en los dos idiomas desde que el README es bilingüe: con solo
+    # las castellanas, la frase inglesa «the ±11 % … was withdrawn as incoherent» se leía como una
+    # cifra vigente y el guardia saltaba sobre un texto que decía exactamente lo que debe decir.
+    marcas_retirada = ("retirad", "anterior", "quedó", "withdrawn", "used to", "no longer")
+    # control de las marcas: el guardia tiene que seguir mordiendo en inglés, no solo en castellano
+    assert not any(m in "la banda de ±11 % para ruta nueva" for m in marcas_retirada)
+    assert not any(m in "expect ±11 % on a new route" for m in marcas_retirada)
+    assert any(m in "el ±11 % quedó retirado por incoherente" for m in marcas_retirada)
+    assert any(m in "the ±11 % was withdrawn as incoherent" for m in marcas_retirada)
     raiz = Path(__file__).resolve().parents[1]
     # Todos los ficheros que el usuario puede leer o que generan texto, no una lista escrita a
     # mano: la lista anterior tenía tres nombres y dejaba fuera `app/streamlit_app.py` y los
@@ -246,7 +257,7 @@ def test_c14_ninguna_cifra_se_presenta_como_precision_en_una_ruta_nueva():
                 continue
             # la frase puede partirse en varias líneas, así que se mira el párrafo alrededor
             ventana = " ".join(lineas[max(0, i - 2):i + 3]).lower()
-            assert any(p in ventana for p in ("retirad", "anterior", "quedó")), (
+            assert any(p in ventana for p in marcas_retirada), (
                 f"{nombre}: ±11 % presentado como cifra vigente -> {linea.strip()}")
     # y la banda de ruta nueva no existe como número: es un suelo declarado
     assert "suelo" in AVISO_RUTA_NUEVA and "sin verificar" in AVISO_RUTA_NUEVA
