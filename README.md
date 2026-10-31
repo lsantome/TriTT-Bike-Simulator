@@ -131,6 +131,27 @@ The initial module can also be set by adding `?modo=estimador` to the URL.
 > **`run.bat` could not be run on Windows**: it is validated by inspection and by a static lint of
 > the usual `cmd` pitfalls. If it fails for you, send whatever the window says.
 
+### Self-contained Windows package (no Python required)
+
+For people who should not have to install anything there is a Windows package: a folder carrying an
+embedded Python with every dependency inside. Extract the **whole** folder and double-click
+`TriTT.bat`.
+
+- It is built by the `paquete-windows` workflow on a clean `windows-latest` runner, never by hand,
+  so whatever is distributed comes from an identifiable commit. Run it from the Actions tab to get
+  a downloadable artifact, or push a `v*` tag to attach the ZIP to that release.
+- To build it yourself: `pwsh -File packaging\windows\construir.ps1`.
+- **Nothing is frozen** (no PyInstaller): it is the same Python running the same code, with the
+  interpreter travelling in the folder. Freezing Streamlit is fragile — it boots through its own
+  CLI, loads static assets from the package directory and reads metadata with
+  `importlib.metadata` — so every upgrade can break the build. The build does check that the
+  packaged interpreter can import the application, and fails rather than shipping a folder that
+  will not start.
+- Bike profiles are written to `%APPDATA%\TriTT-Bike-Simulator\`, not next to the program, so the
+  package can sit in a read-only location and replacing it does not lose your profiles.
+- The package is **not code-signed**, so SmartScreen warns on first run. `LEEME.txt` inside the ZIP
+  explains that, and everything else, to someone who has never opened a terminal (in Spanish).
+
 ## The two modules and the intended workflow
 
 They are chosen with the **What do you want to do** selector in the sidebar:
@@ -437,6 +458,7 @@ app/theme.py          design system: colour tokens, typefaces and the numeric-re
 .streamlit/config.toml  light theme by default and Streamlit top bar hidden
 tests/                automated tests of the acceptance criteria
   fixtures/           5 real activities, reduced and anonymised; see their README
+packaging/windows/    self-contained Windows package: build script, launcher and end-user notes
 docs/calidad/         defect registry and independent reviews
 simulador-ciclismo-triatlon.spec.md       the specification and its 32 acceptance criteria
 simulador-ciclismo-triatlon.validacion.md validation report with real data
@@ -588,6 +610,29 @@ También se puede fijar el módulo inicial añadiendo `?modo=estimador` a la URL
 > `run.sh` está probado de punta a punta (entorno creado desde cero, aplicación respondiendo).
 > **`run.bat` no se ha podido ejecutar en Windows**: está validado por inspección y por un lint
 > estático de las trampas de `cmd`. Si te falla, manda lo que diga la ventana.
+
+### Paquete autocontenido de Windows (sin instalar Python)
+
+Para quien no tenga por qué instalar nada hay un paquete de Windows: una carpeta que lleva dentro
+un Python embebido con todas las dependencias. Se descomprime la carpeta **completa** y se hace
+doble clic en `TriTT.bat`.
+
+- Lo construye el workflow `paquete-windows` en un runner limpio de `windows-latest`, nunca a
+  mano, para que lo que se reparte salga de un commit identificable. Ejecutándolo desde la pestaña
+  Actions queda como artefacto descargable; empujando una etiqueta `v*` se adjunta el ZIP a esa
+  release.
+- Para construirlo tú mismo: `pwsh -File packaging\windows\construir.ps1`.
+- **No hay nada congelado** (nada de PyInstaller): es el mismo Python ejecutando el mismo código,
+  solo que el intérprete viaja en la carpeta. Congelar Streamlit es frágil —arranca por su propio
+  CLI, carga estáticos desde el directorio del paquete y lee metadatos con `importlib.metadata`—,
+  así que cada actualización puede romper el empaquetado. La construcción comprueba que el
+  intérprete empaquetado puede importar la aplicación, y falla antes que repartir una carpeta que
+  no arranca.
+- Los perfiles de bici se guardan en `%APPDATA%\TriTT-Bike-Simulator\`, no junto al programa, así
+  que el paquete puede vivir en una ruta de solo lectura y sustituirlo no pierde los perfiles.
+- El paquete **no está firmado digitalmente**, así que SmartScreen avisa la primera vez. El
+  `LEEME.txt` que va dentro del ZIP explica eso, y todo lo demás, a alguien que no ha abierto una
+  terminal en su vida.
 
 ## Los dos módulos y el flujo pensado
 
@@ -899,6 +944,7 @@ app/theme.py          sistema de diseño: tokens de color, tipografías y los co
 .streamlit/config.toml  tema claro por defecto y barra superior de Streamlit oculta
 tests/                tests automáticos de los criterios de aceptación
   fixtures/           5 actividades reales reducidas y anonimizadas; ver su README
+packaging/windows/    paquete autocontenido de Windows: script de construcción, lanzador y LEEME
 docs/calidad/         registro de defectos y revisiones independientes
 simulador-ciclismo-triatlon.spec.md       especificación y sus 32 criterios de aceptación
 simulador-ciclismo-triatlon.validacion.md informe de validación con datos reales

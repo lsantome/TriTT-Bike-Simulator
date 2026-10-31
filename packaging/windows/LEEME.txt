@@ -1,0 +1,121 @@
+﻿TriTT Bike Simulator
+Simulador de ciclismo para triatlón (sin drafting) y contrarreloj
+===============================================================================
+
+No hace falta instalar nada. Python y todas las dependencias ya van dentro de
+esta carpeta.
+
+
+CÓMO EMPEZAR
+-------------------------------------------------------------------------------
+
+1. Descomprime la carpeta COMPLETA en algún sitio: el Escritorio o Documentos
+   sirven.
+
+   IMPORTANTE: no intentes abrir el programa desde dentro del fichero ZIP.
+   Tiene que estar descomprimido o no funcionará.
+
+   Si Windows te dice que el fichero viene de internet y lo bloquea: haz clic
+   derecho en el ZIP, elige Propiedades, marca "Desbloquear" abajo y acepta.
+   Después descomprime.
+
+2. Entra en la carpeta y haz doble clic en  TriTT.bat
+
+3. La primera vez Windows puede avisar de que no reconoce el programa
+   ("Windows protegió tu PC"). Pulsa "Más información" y luego
+   "Ejecutar de todas formas". Es porque el programa no está firmado
+   digitalmente, no porque tenga nada raro: el código completo está publicado
+   en GitHub.
+
+4. Se abrirá una ventana negra y, en unos segundos, la aplicación en tu
+   navegador.
+
+   NO CIERRES LA VENTANA NEGRA mientras uses la aplicación: es el programa
+   funcionando. Para salir, ciérrala.
+
+
+QUÉ HACE LA APLICACIÓN
+-------------------------------------------------------------------------------
+
+Dos cosas, que se eligen con el selector de la barra lateral izquierda:
+
+  1. ESTIMAR TU CdA (coeficiente de resistencia al avance) a partir de una
+     actividad tuya en formato .fit, con GPS y potencia. Necesitas un archivo
+     de una salida que tenga algún tramo llano recorrido en los dos sentidos.
+
+  2. PREDECIR UNA CARRERA: subes el GPX del recorrido, dices qué potencia
+     piensas sostener y te da el tiempo, la velocidad y la potencia por tramo.
+
+El orden importa. El CdA es el dato que más mueve la predicción, así que
+primero estima el tuyo y después predice. Una predicción hecha con el valor
+por defecto no es una predicción de tu bici.
+
+Si no tienes ningún GPX a mano, la aplicación trae una ruta de ejemplo para
+que puedas probarla.
+
+
+LO QUE TIENES QUE SABER ANTES DE FIARTE DE UN NÚMERO
+-------------------------------------------------------------------------------
+
+* Todos los tiempos salen con su margen de error. Eso no es un adorno: es la
+  parte honesta del resultado. Míralo.
+
+* El viento NO está en el modelo. Cuando la herramienta estima tu CdA a partir
+  de una salida, el viento de ese día se mete dentro del número. Por eso la
+  herramienta busca tramos recorridos en los dos sentidos: ida y vuelta se
+  compensan. Hazle caso cuando te avise de que una actividad no sirve.
+
+* El CdA que sale no es un dato de túnel de viento. Es un coeficiente efectivo
+  que incluye tu aerodinámica real, pero también el viento, el rebufo si fuiste
+  con alguien, el error del altímetro y el sesgo de tu potenciómetro. No lo
+  compares con las cifras que publica un fabricante.
+
+* Si cambias de posición, de casco o de ropa, tu CdA cambia y hay que volver a
+  estimarlo.
+
+* La precisión comprobada es de ±1,4 % con la misma bici y la misma ruta en
+  condiciones parecidas a las de la calibración, y de ±15 % cuando no se sabe
+  qué viento hizo. Para una ruta nueva no hay cifra comprobada: la herramienta
+  lo dice en pantalla en lugar de inventarse una.
+
+El README.md que viene en esta carpeta explica todo esto con los datos y las
+medidas que lo respaldan.
+
+
+DÓNDE SE GUARDAN TUS DATOS
+-------------------------------------------------------------------------------
+
+Los perfiles de bici que guardes van a:
+
+    %APPDATA%\TriTT-Bike-Simulator\perfiles_bici.json
+
+Es decir, a tu carpeta de usuario, no a la del programa. Así puedes mover o
+borrar esta carpeta sin perder tus perfiles, y actualizar a una versión nueva
+sin tener que volver a configurar nada.
+
+Los archivos .fit y .gpx que subas NO se guardan en ningún sitio ni se envían a
+ningún servidor: todo ocurre en tu ordenador. La aplicación se abre en el
+navegador porque es su forma de dibujar la pantalla, no porque haya internet
+de por medio.
+
+
+SI ALGO NO FUNCIONA
+-------------------------------------------------------------------------------
+
+* "No encuentro python\python.exe"
+  Estás ejecutándolo desde dentro del ZIP. Descomprime la carpeta primero.
+
+* "El puerto 8501 ya está en uso"
+  La aplicación ya estaba abierta. Búscala en una pestaña del navegador.
+
+* La ventana negra aparece y se cierra sola
+  Abre una ventana de Símbolo del sistema en esta carpeta y ejecuta TriTT.bat
+  desde ahí para poder leer el error, o manda una foto de la ventana.
+
+* Cualquier otra cosa
+  Copia el texto de la ventana negra: ahí está el motivo.
+
+
+===============================================================================
+Herramienta de uso personal, sin garantía. Ver LICENSE y las limitaciones
+conocidas del README.md.
