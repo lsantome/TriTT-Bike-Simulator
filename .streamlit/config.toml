@@ -10,3 +10,10 @@ secondaryBackgroundColor = "#FFFFFF"
 textColor = "#1B2733"
 font = "sans serif"
 
+# Sin el botón «Deploy» ni el menú de Streamlit Cloud. Esta aplicación se ejecuta en local
+# (`run.sh` / `run.bat`): el botón llevaba a publicarla en Streamlit Community Cloud, que no es
+# parte de este flujo, y el menú solo ofrecía opciones de ese servicio. «minimal» deja la barra
+# superior vacía; «viewer» conservaría el menú ☰ sin el botón.
+[client]
+toolbarMode = "minimal"
+
