@@ -687,6 +687,109 @@ def combine_pairs(pares: Sequence[OppositePair]) -> Tuple[float, float]:
 
 
 @dataclass
+class ActivityEstimate:
+    """El CdA de **una actividad entera**, sacado de sus pares de ida y vuelta, con su veredicto.
+
+    Es la unidad con la que se combinan varias actividades: una fila por `.fit` cargado.
+    """
+    nombre: str
+    cda: float
+    incertidumbre: float               # dispersión entre los pares de esta actividad
+    n_pares: int
+    n_rechazados: int                  # pares imposibles descartados (criterio 28)
+    velocidad_media_kmh: float
+    sens_viento: float                 # ΔCdA por 1 m/s de viento, promediado en sus tramos
+    coherente: bool
+    motivo: str = ""                   # avisos del examen de coherencia, ya en el idioma pedido
+
+    def as_dict(self) -> dict:
+        return dict(self.__dict__)
+
+
+def estimate_activity(ride: RideData, params: Params, *,
+                      max_razon_velocidad: Optional[float] = None,
+                      pares: Optional[List[OppositePair]] = None,
+                      rechazados: Optional[List[ParRechazado]] = None,
+                      idioma: str = IDIOMA_POR_DEFECTO,
+                      **kwargs) -> Optional[ActivityEstimate]:
+    """Estima el CdA de una actividad completa y la examina, todo en una pasada.
+
+    Junta lo que hay que hacer con cada `.fit` cargado: buscar sus pares de ida y vuelta,
+    combinarlos, y pasar la actividad por el examen de coherencia (criterio 30). Vive en el núcleo
+    y no en la interfaz para poder verificarlo sin Streamlit, como la tabla del criterio 26.
+
+    Devuelve `None` si la actividad no da **ningún** par de ida y vuelta: sin pares no hay CdA que
+    defender, porque un tramo suelto lleva el viento dentro (ver `find_paired_segments`).
+
+    `pares` y `rechazados` son listas de salida, al estilo de `find_paired_segments`: pasándolas se
+    recupera el detalle de esta actividad sin tener que repetir la búsqueda, que es la parte cara.
+    """
+    from .coherence import check_coherence     # aquí para no fijar el orden de importación
+
+    p = validate_params(params)
+    if rechazados is None:
+        rechazados = []
+    encontrados = find_paired_segments(ride, p, max_razon_velocidad=max_razon_velocidad,
+                                       rechazados=rechazados, idioma=idioma, **kwargs)
+    if pares is not None:
+        pares.extend(encontrados)
+    informe = check_coherence(ride, p, idioma=idioma)
+    if not encontrados:
+        return None
+    cda, inc = combine_pairs(encontrados)
+    tramos = [e for par in encontrados for e in (par.ida, par.vuelta)]
+    return ActivityEstimate(
+        nombre=ride.name, cda=float(cda), incertidumbre=float(inc), n_pares=len(encontrados),
+        n_rechazados=len(rechazados),
+        velocidad_media_kmh=float(np.mean([e.velocidad_media_kmh for e in tramos])),
+        sens_viento=float(np.mean([e.sens_viento for e in tramos])),
+        coherente=bool(informe.coherente), motivo=" ".join(informe.avisos))
+
+
+def combine_activities(actividades: Sequence[ActivityEstimate]) -> Tuple[float, float]:
+    """Combina el CdA de varias **actividades distintas**: media sin ponderar y dispersión.
+
+    Lanza `ValueError` con la lista vacía.
+
+    **Por qué sin ponderar y por qué la dispersión.** Es el argumento de `combine_pairs`, que entre
+    actividades pesa todavía más: dos salidas de días distintos no son dos medidas independientes
+    del mismo número. Cada una trae su viento residual, su firme, su presión de neumáticos y su
+    postura, así que lo que las separa es variabilidad real y no ruido de muestreo. Dividir la
+    desviación típica por √n reclamaría una precisión que el método no tiene.
+
+    **Qué se gana combinando, y qué no.** Con las tres salidas coherentes **completas** del
+    recorrido de referencia (0,2611, 0,2661 y 0,2550) la media da 0,2607, que apenas se mueve
+    respecto a tomar una sola salida, y la dispersión entre ellas es 0,0056. Lo que aporta combinar
+    **no es precisión en el valor central**, es saber cuánto baila el número de un día a otro, que
+    es la cifra que hace falta para predecir una carrera y que con una sola actividad no se puede
+    obtener de ninguna forma.
+
+    **Cuál de los dos términos manda depende de los datos, y por eso se devuelve el mayor.** Sobre
+    los `.fit` reducidos de `tests/fixtures` las tres coherentes dan 0,2684, 0,2615 y 0,2548: la
+    dispersión entre ellas es 0,0068, pero el margen medio de cada actividad es 0,0208, así que
+    manda este último. Quedarse solo con la dispersión escondería la incertidumbre de cada salida
+    cuando hay pocas; quedarse solo con el margen medio escondería el baile entre días cuando es
+    grande. Las cifras las vuelve a medir un test en vez de creerse estas.
+
+    **Las actividades incoherentes contaminan, y se mide.** Sobre los mismos fixtures, las tres
+    coherentes dan 0,2616 ± 0,0208 y las cinco juntas 0,2601 ± 0,0254: el valor baja y el margen
+    crece. De ahí que la interfaz las excluya por defecto en vez de dejarlas entrar en la media.
+
+    **No usar `combine_estimates` para esto.** Pondera por el inverso de la varianza y divide por
+    √n, que es correcto para varios tramos de una misma actividad y no para actividades distintas;
+    su propio docstring ya avisaba de que habría que revisarlo si se usaba para promediar cosas
+    distintas. Esta función es esa revisión.
+    """
+    if not actividades:
+        raise ValueError("No hay actividades que combinar.")
+    cdas = np.array([a.cda for a in actividades], dtype=float)
+    media = float(np.mean(cdas))
+    formal = float(np.mean([a.incertidumbre for a in actividades]))
+    dispersion = float(np.std(cdas, ddof=1)) if len(cdas) > 1 else 0.0
+    return media, max(formal, dispersion)
+
+
+@dataclass
 class SearchSummary:
     """Resumen honesto de una búsqueda automática, con el sesgo de selección a la vista."""
     n_tramos: int

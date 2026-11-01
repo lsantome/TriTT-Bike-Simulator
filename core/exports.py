@@ -121,6 +121,48 @@ def tabla_segmentos(estimaciones, *, detalle: bool = False, idioma: str = "es"):
     return pd.DataFrame(filas, columns=columnas)
 
 
+#: Columnas del resumen por actividad cuando se cargan varias (criterio 33), una fila por `.fit`.
+#:
+#: El orden va del veredicto a la prueba, igual que en la tabla de coherencia: qué actividad es, si
+#: entra en la media y por qué, el CdA que sale de ella con su margen, y después los números que lo
+#: respaldan. `incluida` y `coherente` son columnas distintas a propósito: el usuario puede incluir
+#: a mano una actividad que el examen rechaza, y entonces la tabla tiene que dejar ver las dos
+#: cosas —que el examen la rechazó y que ha entrado igualmente— en vez de una sola.
+COLUMNAS_ACTIVIDADES = (
+    "actividad", "incluida", "coherente", "cda", "±", "n_pares", "pares_descartados",
+    "v_media_kmh", "viento_1ms_±", "motivo",
+)
+
+
+def tabla_actividades(actividades, incluidas=None, idioma: str = "es"):
+    """Una fila por actividad cargada, con su CdA de pares y su veredicto (criterio 33).
+
+    `actividades` son `ActivityEstimate`; `incluidas` es el conjunto de nombres que entran en la
+    media combinada y, si no se pasa, se toman las coherentes, que es el comportamiento por
+    defecto de la interfaz.
+
+    Se construye aquí y no en la interfaz, por el mismo motivo que `tabla_segmentos`: así se puede
+    verificar sin Streamlit.
+    """
+    filas = []
+    for a in actividades:
+        d = a if isinstance(a, dict) else a.as_dict()
+        entra = d["coherente"] if incluidas is None else d["nombre"] in incluidas
+        filas.append({
+            "actividad": d["nombre"],
+            "incluida": _si_no(bool(entra), idioma, enfatico=True),
+            "coherente": _si_no(bool(d["coherente"]), idioma, enfatico=True),
+            "cda": d["cda"],
+            "±": d["incertidumbre"],
+            "n_pares": d["n_pares"],
+            "pares_descartados": d["n_rechazados"],
+            "v_media_kmh": d["velocidad_media_kmh"],
+            "viento_1ms_±": d["sens_viento"],
+            "motivo": d.get("motivo", ""),
+        })
+    return pd.DataFrame(filas, columns=list(COLUMNAS_ACTIVIDADES))
+
+
 #: Columnas del examen de coherencia (criterio 30), una fila por actividad.
 COLUMNAS_COHERENCIA = (
     "actividad", "cda_calibrado", "coherente", "err_llano_%", "err_bajada_%", "err_subida_%",
