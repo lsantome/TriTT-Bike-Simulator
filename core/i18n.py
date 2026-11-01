@@ -592,11 +592,11 @@ UI: Dict[str, Dict[str, str]] = {
                      "en": "Upload at least one .fit to start."},
     # --- estimador
     "est_intro": {
-        "es": "Calcula tu **CdA real** a partir de una actividad: elige un segmento sobre el "
+        "es": "Estima tu **CdA real** a partir de tus actividades: elige un segmento sobre el "
               "perfil y la herramienta cierra el balance de energía en él (pedales − desnivel − "
               "rodadura − inercia = aerodinámica). **Lee los avisos**: en un segmento corto, "
               "lento o con cuesta, el desnivel pesa más que el aire y el número no vale.",
-        "en": "Works out your **real CdA** from an activity: pick a segment on the profile and the "
+        "en": "Estimates your **real CdA** from your activities: pick a segment on the profile and the "
               "tool closes the energy balance over it (pedals − elevation − rolling − inertia = "
               "aerodynamics). **Read the warnings**: on a short, slow or hilly segment the "
               "elevation weighs more than the air and the number is worthless."},
@@ -676,6 +676,15 @@ UI: Dict[str, Dict[str, str]] = {
                        "en": "#### Summary by activity ({n})"},
     "est_act_examinando": {"es": "Analizando {nombre} ({i} de {total})…",
                            "en": "Analysing {nombre} ({i} of {total})…"},
+    "est_act_tarda": {
+        "es": "Cada actividad lleva su tiempo: la herramienta barre ventanas de 1 a 5 km cada "
+              "250 m y busca la pasada de vuelta de cada tramo. Con {n} actividades esto tarda "
+              "un rato; la barra avanza al terminar cada una.",
+        "en": "Each activity takes a while: the tool sweeps windows from 1 to 5 km every 250 m "
+              "and looks for the return pass of each stretch. With {n} activities this takes a "
+              "few moments; the bar advances as each one finishes."},
+    "est_act_listo": {"es": "Listo: {n} actividades analizadas.",
+                      "en": "Done: {n} activities analysed."},
     "est_act_nota": {
         "es": "Una fila por actividad: su CdA sale de promediar sus pares de ida y vuelta, y el ± "
               "es la dispersión entre esos pares. Las que no pasan el examen de coherencia quedan "
@@ -1138,16 +1147,16 @@ precisely to measure what is yours.
     "etrto_manual": {"es": "manual · introduzco el perímetro medido",
                      "en": "manual · I enter the measured circumference"},
     "modulo": {"es": "Qué quieres hacer", "en": "What do you want to do"},
-    "modulo_estimador": {"es": "Medir mi CdA", "en": "Measure my CdA"},
+    "modulo_estimador": {"es": "Estimar mi CdA", "en": "Estimate my CdA"},
     "modulo_simulador": {"es": "Predecir una carrera", "en": "Predict a race"},
     "cab_estimador": {"es": "Estimador de CdA", "en": "CdA estimator"},
     "cab_estimador_sub": {
-        "es": "Sube una actividad con potencia y GPS. La herramienta busca los tramos llanos "
-              "donde la medida es fiable, los empareja de ida y vuelta para cancelar el viento, y "
-              "te da el CdA de esa bici con esa posición. No hace falta ningún recorrido.",
-        "en": "Upload an activity with power and GPS. The tool finds the flat stretches where the "
-              "measurement holds up, pairs them out and back to cancel the wind, and gives you the "
-              "CdA of that bike in that position. No route needed."},
+        "es": "Sube una o varias actividades con potencia y GPS. La herramienta busca los tramos "
+              "llanos donde la estimación es fiable, los empareja de ida y vuelta para cancelar el "
+              "viento, y te da el CdA de esa bici con esa posición. No hace falta ningún recorrido.",
+        "en": "Upload one or more activities with power and GPS. The tool finds the flat stretches "
+              "where the estimate holds up, pairs them out and back to cancel the wind, and gives "
+              "you the CdA of that bike in that position. No route needed."},
     "cab_simulador": {"es": "Predicción de carrera", "en": "Race prediction"},
     "cab_simulador_sub": {
         "es": "Sube el recorrido de la competición y di qué potencia piensas sostener. El CdA "

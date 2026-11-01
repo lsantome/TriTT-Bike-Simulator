@@ -316,6 +316,83 @@ def css(oscuro: bool) -> str:
                  font-size:1rem; }}
 .vacio p {{ margin:0 auto; max-width:52ch; font-size:0.875rem; color:{c.apagado} !important; }}
 
+/* --- jerarquía y ritmo ------------------------------------------------------
+   El sistema era correcto pero plano: todo pesaba igual y la pantalla no guiaba la mirada. Esto
+   no añade adorno —el criterio 32 lo prohíbe— sino jerarquía: un acento que marca dónde empieza
+   cada cosa, superficies que separan lo que es un bloque de lo que es texto, y estados de los
+   controles que se distinguen. Todo sale de los mismos tokens, así que vale en los dos temas. */
+
+/* la cabecera de módulo arranca con el color de señal: es el ancla de la pantalla */
+.modulo-cab {{ padding-top:0.15rem; }}
+.modulo-cab h1 {{ font-size:1.6rem; letter-spacing:-0.015em; font-weight:600; }}
+.modulo-cab::before {{
+  content:""; display:block; width:2.25rem; height:3px; border-radius:2px;
+  background:{c.senal}; margin-bottom:0.6rem;
+}}
+
+/* los títulos de sección se reconocen de un vistazo, sin recurrir a cajas */
+.stApp [data-testid="stMarkdownContainer"] h4 {{
+  font-size:1rem; font-weight:600; letter-spacing:-0.01em;
+  margin:1.6rem 0 0.35rem; padding-left:0.6rem; border-left:3px solid {c.senal};
+}}
+.stApp [data-testid="stMarkdownContainer"] h3 {{ font-size:1.15rem; font-weight:600; }}
+
+/* pestaña activa: el acento dice dónde estás, en vez de un gris que hay que adivinar */
+.stApp [data-baseweb="tab-list"] {{ margin-bottom:0.4rem; }}
+.stApp [data-baseweb="tab"][aria-selected="true"] {{ color:{c.senal} !important; }}
+.stApp [data-baseweb="tab-highlight"], .stApp [data-baseweb="tab-border"] {{
+  background:{c.senal} !important;
+}}
+
+/* el desplegable de requisitos y los demás expansores son bloques, no texto suelto */
+.stApp [data-testid="stExpander"] {{
+  border:1px solid {c.regla}; border-radius:4px; background:{c.superficie};
+  overflow:hidden; margin-bottom:0.6rem;
+}}
+.stApp [data-testid="stExpander"] summary {{ font-weight:500; }}
+.stApp [data-testid="stExpander"] summary:hover {{ color:{c.senal}; }}
+
+/* los avisos hablan el mismo idioma que los veredictos: regla de color a la izquierda */
+.stApp [data-testid="stAlert"] {{
+  background:{c.superficie} !important; border:1px solid {c.regla};
+  border-left:3px solid {c.borde}; border-radius:3px;
+}}
+.stApp [data-testid="stAlert"], .stApp [data-testid="stAlert"] * {{ color:{c.tinta} !important; }}
+.stApp [data-testid="stAlertContentSuccess"] {{ border-left-color:{c.musgo}; }}
+.stApp [data-testid="stAlertContentWarning"] {{ border-left-color:{c.ocre}; }}
+.stApp [data-testid="stAlertContentError"] {{ border-left-color:{c.ladrillo}; }}
+.stApp [data-testid="stAlertContentInfo"] {{ border-left-color:{c.senal}; }}
+
+/* la barra de progreso usa el acento: es trabajo en curso, no decoración */
+.stApp [data-testid="stProgress"] div[role="progressbar"] > div {{ background:{c.senal}; }}
+
+/* la zona de subida invita, con el mismo trazo discontinuo que la pantalla vacía */
+.stApp [data-testid="stFileUploaderDropzone"] {{
+  border:1px dashed {c.regla} !important; border-radius:4px;
+}}
+.stApp [data-testid="stFileUploaderDropzone"]:hover {{ border-color:{c.senal} !important; }}
+
+/* barra lateral: un panel, no una columna de controles sueltos */
+[data-testid="stSidebar"] {{
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, {c.senal} 4%, {c.superficie}) 0 7rem,
+                    {c.superficie} 7rem);
+}}
+[data-testid="stSidebar"] h1 {{ font-size:1.1rem; font-weight:600; letter-spacing:-0.01em; }}
+[data-testid="stSidebar"] [data-testid="stExpander"] {{ background:transparent; }}
+[data-testid="stSidebar"] hr {{ margin:0.9rem 0; }}
+
+/* cabecera de tabla: suficiente para separarla de los datos, nada más */
+.stApp [data-testid="stDataFrame"] [role="columnheader"] {{
+  background:color-mix(in srgb, {c.senal} 6%, {c.superficie});
+}}
+
+/* el botón principal pesa lo que tiene que pesar */
+.stApp [data-testid="stBaseButton-primary"] {{ font-weight:600; }}
+.stApp [data-testid="stBaseButton-primary"]:hover {{
+  background:color-mix(in srgb, {c.tinta} 12%, {c.senal}) !important;
+}}
+
 @media (prefers-reduced-motion: reduce) {{
   .stApp *, .banda * {{ animation:none !important; transition:none !important; }}
 }}
