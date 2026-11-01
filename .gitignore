@@ -8,6 +8,8 @@ perfiles_bici.json
 *.fit
 !tests/fixtures/*.fit
 .env
+# Paquete de Windows montado por packaging/windows/construir.ps1
+dist/
 .DS_Store
 .idea/
 .vscode/

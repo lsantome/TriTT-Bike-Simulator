@@ -1,0 +1,79 @@
+name: paquete-windows
+
+# Construye el ZIP autocontenido de Windows (Python embebido + dependencias + aplicación).
+#
+# - A mano, desde la pestaña Actions ("Run workflow"): deja el ZIP como artefacto de la ejecución,
+#   descargable durante 30 días. Es el camino para probar un paquete sin publicar nada.
+# - Al empujar una etiqueta `v*` (por ejemplo `v1.0.0`): además lo adjunta a la release de esa
+#   etiqueta, que es el enlace que se reparte.
+#
+# El paquete se construye SIEMPRE en un runner limpio de Windows, nunca a mano, para que lo que se
+# reparte salga de un commit identificable y no del ordenador de nadie.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_python:
+        description: "Versión del Python embebido"
+        required: false
+        default: "3.12.8"
+  push:
+    tags:
+      - "v*"
+  # En las PR que tocan el empaquetado o las dependencias, se construye igual. Así la propia PR
+  # demuestra que el paquete sale y que el intérprete empaquetado importa la aplicación, en vez de
+  # descubrirlo al publicar una etiqueta.
+  pull_request:
+    paths:
+      - "packaging/**"
+      - ".github/workflows/paquete-windows.yml"
+      - "requirements.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  paquete:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # La suite no se ejecuta aquí: de eso se encarga el workflow `tests`. Lo que se comprueba en
+      # este es que el paquete montado puede importar la aplicación, y lo hace `construir.ps1`.
+      - name: Construir el paquete
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version_python }}"
+          if ([string]::IsNullOrWhiteSpace($version)) { $version = "3.12.8" }
+          ./packaging/windows/construir.ps1 -VersionPython $version
+
+      - name: Inventario de lo que se ha construido
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | Format-Table Name, @{n="MB";e={[math]::Round($_.Length/1MB,1)}}
+          Get-ChildItem dist/TriTT-Bike-Simulator | Select-Object Name | Format-Table
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TriTT-Bike-Simulator-windows
+          path: dist/TriTT-Bike-Simulator-windows.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Adjuntar a la release de la etiqueta
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zip = "dist/TriTT-Bike-Simulator-windows.zip"
+          if (-not (gh release view $tag 2>$null)) {
+            gh release create $tag --title $tag --notes "Paquete autocontenido para Windows. Descomprime la carpeta completa y abre TriTT.bat. No hace falta instalar Python. Ver LEEME.txt dentro del ZIP."
+          }
+          gh release upload $tag $zip --clobber
