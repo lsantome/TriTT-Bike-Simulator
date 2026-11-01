@@ -20,11 +20,12 @@ import theme
 from core import (CATEGORIES, REQUIRED_PARAMS, ParamError, Params, SURFACES,
                   build_profile, parse_gpx, simulate, specs_by_category, validate_params)
 from core.params import MODULOS, PARAM_SPECS, specs_for_module
-from core.cda_estimator import (combine_estimates, combine_pairs, estimate_cda,
+from core.cda_estimator import (ActivityEstimate, combine_activities, combine_estimates,
+                                combine_pairs, estimate_activity, estimate_cda,
                                 find_paired_segments, ride_distance_km, search_summary)
 from core.coherence import CDA_PLAUSIBLE, check_coherence
-from core.exports import (csv_bytes, tabla_bloques, tabla_coherencia, tabla_segmentos,
-                          tabla_tramos, tabla_validacion)
+from core.exports import (csv_bytes, tabla_actividades, tabla_bloques, tabla_coherencia,
+                          tabla_segmentos, tabla_tramos, tabla_validacion)
 from core.i18n import (ETIQUETAS_IDIOMA, IDIOMAS, cabeceras, categoria, param_help, param_label,
                        superficie as superficie_label, t)
 from core.profiles import (PROFILE_KEYS, delete_profile, load_profiles, profile_from_params,
@@ -644,19 +645,34 @@ if not ES_ESTIMADOR:
 
 with tab_est:
     st.markdown(t("est_intro", IDIOMA))
-    fit_est = st.file_uploader(t("est_subir", IDIOMA), type=["fit"], key="est_fit")
-    if fit_est is None:
+    # Las condiciones que debe cumplir una actividad van **en la pantalla donde se sube**, no solo
+    # en el README (criterio 33). Son la diferencia entre estimar tu aerodinámica y estimar el
+    # viento que hizo ese día, y con carga múltiple pesan más: las actividades se promedian entre
+    # sí, así que un montaje distinto en una de ellas contamina el resultado de todas.
+    with st.expander(t("est_requisitos_titulo", IDIOMA), expanded=False):
+        st.markdown(t("est_requisitos", IDIOMA))
+    fits = st.file_uploader(t("est_subir", IDIOMA), type=["fit"], accept_multiple_files=True,
+                            key="est_fits")
+    rides = {}
+    for f in fits or []:
+        try:
+            rides[f.name] = read_fit(f.getvalue(), f.name)
+        except Exception as e:
+            st.error(f"{f.name}: {e}")
+    if not rides:
         st.markdown(theme.vacio(t("est_vacio_titulo", IDIOMA), t("est_vacio_texto", IDIOMA)),
                     unsafe_allow_html=True)
     else:
-        try:
-            ride = read_fit(fit_est.getvalue(), fit_est.name)
-            km = ride_distance_km(ride)
-        except Exception as e:
-            st.error(f"{fit_est.name}: {e}")
-            st.stop()
+        nombres = list(rides)
+        # El detalle por tramos y el camino manual son por fuerza de **una** actividad: el perfil,
+        # el deslizador y la selección sobre el gráfico no tienen sentido sobre cinco a la vez. El
+        # valor combinado, en cambio, sale de todas. De ahí el selector.
+        activa = (st.selectbox(t("est_elegir_actividad", IDIOMA), nombres, key="est_activa")
+                  if len(nombres) > 1 else nombres[0])
+        ride = rides[activa]
+        km = ride_distance_km(ride)
         km_max = float(km[-1])
-        st.caption(t("est_resumen_fit", IDIOMA, nombre=fit_est.name, km=km_max, n=len(km)))
+        st.caption(t("est_resumen_fit", IDIOMA, nombre=activa, km=km_max, n=len(km)))
 
         def veredicto_coherencia():
             """Examen de coherencia de esta actividad (criterio 30), calculado una sola vez.
@@ -667,9 +683,9 @@ with tab_est:
             calibrado y sin un solo aviso. Se cachea por (parámetros, fichero) para no repetir el
             cálculo en cada interacción.
             """
-            clave = (params_json(params), fit_est.name)
+            clave = (params_json(params), activa)
             if st.session_state.get("est_coh_clave") != clave:
-                with st.spinner(t("coh_examinando", IDIOMA, nombre=fit_est.name)):
+                with st.spinner(t("coh_examinando", IDIOMA, nombre=activa)):
                     st.session_state["est_coherencia"] = check_coherence(
                         ride, params, idioma=IDIOMA).as_dict()
                 st.session_state["est_coh_clave"] = clave
@@ -680,33 +696,132 @@ with tab_est:
             actividad es coherente, de modo que aplicar un CdA bueno **limpia** una bandera
             anterior en vez de dejarla puesta."""
             coh = veredicto_coherencia()
-            return [] if coh["coherente"] else [fit_est.name]
+            return [] if coh["coherente"] else [activa]
 
         # --- búsqueda automática: es el camino recomendado
         st.markdown(t("est_seccion_auto", IDIOMA))
         st.caption(t("est_auto_nota", IDIOMA))
         if st.button(t("est_buscar", IDIOMA), key="btn_buscar", type="primary"):
-            with st.spinner(t("est_buscando", IDIOMA)):
-                rechazados: list = []
-                st.session_state["est_pares"] = find_paired_segments(
-                    ride, params, rechazados=rechazados, idioma=IDIOMA)
-                st.session_state["est_rechazados"] = [r.motivo for r in rechazados]
-                # Ida **y** vuelta: con solo las idas, el resumen comparaba media ruta contra la
-                # ruta entera y la misma pantalla enseñaba dos velocidades distintas para los
-                # mismos tramos (35,0 km/h en el pie y 38,3 km/h en el aviso de sesgo).
-                st.session_state["est_resumen"] = search_summary(
-                    ride, params,
-                    [e for par in st.session_state["est_pares"] for e in (par.ida, par.vuelta)],
-                    idioma=IDIOMA)
+            # Se recorren TODAS las actividades cargadas, no solo la activa: el valor que se
+            # recomienda sale de combinarlas. El detalle de cada una (sus pares y los descartados)
+            # se guarda por el camino, porque la búsqueda es la parte cara y repetirla para
+            # enseñar el detalle de la activa sería hacer dos veces el mismo trabajo.
+            resumenes, detalle = [], {}
+            for i, nombre in enumerate(nombres, start=1):
+                with st.spinner(t("est_act_examinando", IDIOMA, nombre=nombre, i=i,
+                                   total=len(nombres))):
+                    pares_n: list = []
+                    rech_n: list = []
+                    act = estimate_activity(rides[nombre], params, pares=pares_n,
+                                            rechazados=rech_n, idioma=IDIOMA)
+                detalle[nombre] = {"pares": pares_n, "rechazados": [r.motivo for r in rech_n]}
+                if act is not None:
+                    resumenes.append(act.as_dict())
+                else:
+                    st.warning(t("est_act_sin_pares", IDIOMA, nombre=nombre))
+            st.session_state["est_actividades"] = resumenes
+            st.session_state["est_detalle"] = detalle
             # Criterio 30: la actividad pasa por el examen de coherencia, aquí y en el camino
-            # manual (ver `veredicto_coherencia`).
+            # manual (ver `veredicto_coherencia`). `estimate_activity` ya lo ha hecho para todas;
+            # esto deja además el veredicto de la activa cacheado para el resto de la pantalla.
             veredicto_coherencia()
-            st.session_state["est_clave"] = (params_json(params), fit_est.name)
+            st.session_state["est_clave"] = (params_json(params), tuple(nombres))
+
+        # El detalle que se enseña es el de la actividad activa, sacado de lo que ya se calculó.
+        det = (st.session_state.get("est_detalle") or {}).get(activa) or {}
+        st.session_state["est_pares"] = det.get("pares")
+        st.session_state["est_rechazados"] = det.get("rechazados") or []
+        # El resumen de sesgo de selección (criterio 25) sí se calcula por actividad y a demanda:
+        # estima la ruta completa, así que hacerlo para las cinco en el barrido multiplicaría la
+        # espera por algo que solo se mira de una en una. Se cachea por (parámetros, actividad).
+        if st.session_state.get("est_pares"):
+            clave_res = (params_json(params), activa)
+            if st.session_state.get("est_resumen_clave") != clave_res:
+                with st.spinner(t("est_buscando", IDIOMA)):
+                    st.session_state["est_resumen"] = search_summary(
+                        ride, params,
+                        [e for par in st.session_state["est_pares"] for e in (par.ida, par.vuelta)],
+                        idioma=IDIOMA)
+                st.session_state["est_resumen_clave"] = clave_res
+        else:
+            st.session_state["est_resumen"] = None
+
+        # --- lo que aportan varias actividades: la dispersión entre días
+        actividades = st.session_state.get("est_actividades") or []
+        incluidas_nombres: set = set()
+        if actividades:
+            malas_act = [a for a in actividades if not a["coherente"]]
+            incluir_malas = False
+            if malas_act:
+                st.warning(t("est_act_excluidas", IDIOMA, n=len(malas_act),
+                             total=len(actividades)))
+                incluir_malas = st.checkbox(t("est_act_incluir", IDIOMA), key="est_incluir_malas",
+                                            help=t("est_act_incluir_ayuda", IDIOMA))
+            incluidas = [a for a in actividades if incluir_malas or a["coherente"]]
+            incluidas_nombres = {a["nombre"] for a in incluidas}
+
+            st.markdown(t("est_act_titulo", IDIOMA, n=len(actividades)))
+            tabla_act = tabla_actividades(actividades, incluidas=incluidas_nombres, idioma=IDIOMA)
+            st.dataframe(
+                tabla_act.drop(columns=["motivo"]).round(3).rename(
+                    columns=cabeceras(tabla_act.columns, IDIOMA)),
+                hide_index=True)
+            for a in actividades:
+                st.markdown(theme.veredicto(f"<b>{a['nombre']}</b> — {a['motivo']}",
+                                            "ok" if a["coherente"] else "mal"),
+                            unsafe_allow_html=True)
+            st.caption(t("est_act_nota", IDIOMA))
+            st.download_button(t("est_act_descargar", IDIOMA),
+                               csv_bytes(tabla_actividades(actividades,
+                                                           incluidas=incluidas_nombres)),
+                               "cda_actividades.csv", "text/csv", key="btn_csv_actividades")
+
+            if not incluidas:
+                st.warning(t("est_act_ninguna", IDIOMA))
+            elif len(incluidas) == 1:
+                # Con una sola actividad no hay dispersión entre días que medir, y decirlo importa:
+                # el margen que se ve es el de sus pares y no incluye el viento.
+                st.info(t("est_act_una_sola", IDIOMA))
+            else:
+                objetos = [ActivityEstimate(**a) for a in incluidas]
+                cda_act, inc_act = combine_activities(objetos)
+                dispersion = float(np.std([a.cda for a in objetos], ddof=1))
+                sens_viento_act = float(np.mean([a.sens_viento for a in objetos]))
+                st.markdown(
+                    theme.lectura(
+                        t("est_act_lectura_cab", IDIOMA, n=len(objetos)), f"{cda_act:.3f}",
+                        margen=f"{inc_act:.3f}", unidad="m²",
+                        pie=[(f"{len(objetos)}", t("est_act_m_actividades", IDIOMA)),
+                             (f"{sum(a.n_pares for a in objetos)}", t("est_act_m_pares", IDIOMA)),
+                             (f"{dispersion:.3f}", t("est_act_m_dispersion", IDIOMA))],
+                        banda=theme.banda_svg(
+                            cda_act,
+                            [theme.Tramo(inc_act, COLOR.senal,
+                                         t("est_act_banda", IDIOMA, inc=inc_act)),
+                             theme.Tramo(max(sens_viento_act, inc_act * 1.2), COLOR.ocre,
+                                         t("est_banda_viento", IDIOMA, sens=sens_viento_act),
+                                         rayada=True)],
+                            formato="{:.3f}", ident="a")),
+                    unsafe_allow_html=True)
+                origen_act = t("est_origen_actividades", IDIOMA, n=len(objetos),
+                               lista=", ".join(a.nombre for a in objetos))
+                st.button(t("est_aplicar_actividades", IDIOMA), key="btn_aplicar_actividades",
+                          type="primary",
+                          on_click=lambda v=cda_act, o=origen_act,
+                          m=[a.nombre for a in objetos if not a.coherente]:
+                              st.session_state.update(
+                                  p_cda=round(float(v), 3),
+                                  cda_de_estimador=o,
+                                  perfil_origen=o,
+                                  perfil_calibrado=True,
+                                  cda_cal_incoherente=m),
+                          help=t("est_aplicar_ayuda", IDIOMA))
+            st.divider()
 
         # Igual que el simulador (criterio 20): el resultado en pantalla se marca como
         # desfasado si cambian los parámetros con los que se calculó. Subir la masa de 90 a 130 kg
         # dejaba el CdA anterior ahí, sin un solo aviso.
-        clave_est = (params_json(params), fit_est.name)
+        clave_est = (params_json(params), tuple(nombres))
         if st.session_state.get("est_pares") is not None and \
                 st.session_state.get("est_clave") != clave_est:
             st.warning(t("est_desfasado", IDIOMA))
@@ -802,9 +917,9 @@ with tab_est:
                               st.session_state.update(
                                   p_cda=round(float(v), 3),
                                   cda_de_estimador=t("est_origen_pares", IDIOMA, n=n,
-                                                     fichero=fit_est.name),
+                                                     fichero=activa),
                                   perfil_origen=t("est_origen_pares", IDIOMA, n=n,
-                                                  fichero=fit_est.name),
+                                                  fichero=activa),
                                   perfil_calibrado=True,
                                   cda_cal_incoherente=m),
                           help=t("est_aplicar_ayuda", IDIOMA))

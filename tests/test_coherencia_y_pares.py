@@ -11,11 +11,13 @@ import numpy as np
 import pytest
 
 from core import Params
-from core.cda_estimator import (MAX_RAZON_VELOCIDAD_PAR, ParRechazado, combine_pairs,
-                                find_paired_segments, razon_velocidades)
+from core.cda_estimator import (MAX_RAZON_VELOCIDAD_PAR, ParRechazado, combine_activities,
+                                combine_pairs, estimate_activity, find_paired_segments,
+                                razon_velocidades)
 from core.coherence import (CDA_PLAUSIBLE, UMBRAL_ERROR_BAJADA_PCT, UMBRAL_ERROR_LLANO_PCT,
                             check_coherence)
-from core.exports import COLUMNAS_COHERENCIA, csv_bytes, tabla_coherencia
+from core.exports import (COLUMNAS_ACTIVIDADES, COLUMNAS_COHERENCIA, csv_bytes,
+                          tabla_actividades, tabla_coherencia)
 from core.uncertainty import DIA_PCT, MODELO_PCT, PEOR_ERROR_DIA_PCT
 from core.validation import calibrate_cda, read_fit, replay
 
@@ -341,3 +343,104 @@ def test_c25_la_banda_es_la_dispersion_y_no_el_error_de_la_media(salidas):
     _, banda = combine_pairs(pares)
     assert banda == pytest.approx(cdas.std(ddof=1), rel=1e-9)
     assert banda > cdas.std(ddof=1) / np.sqrt(len(cdas)) * 1.5
+
+
+# --------------------------------------------------------------- criterio 33: varias actividades
+def test_c33_cada_actividad_da_su_cda_y_su_veredicto(salidas):
+    """`estimate_activity` junta lo que hay que hacer con cada `.fit`: pares, combinación y
+    examen. El veredicto que devuelve tiene que coincidir con el del examen por separado, porque
+    si se separan el resumen por actividad diría una cosa y la fila de coherencia otra."""
+    for nombre in TODAS:
+        act = estimate_activity(salidas[nombre], PARAMS)
+        assert act is not None, f"{nombre}: no encuentra ningún par"
+        assert act.nombre == nombre
+        assert act.n_pares > 0 and act.incertidumbre > 0
+        assert 0.15 < act.cda < 0.40, f"{nombre}: CdA implausible {act.cda}"
+        assert act.coherente == check_coherence(salidas[nombre], PARAMS).coherente
+        assert act.motivo, f"{nombre}: el motivo llega vacío"
+
+
+def test_c33_las_actividades_se_combinan_sin_ponderar_y_con_la_dispersion(salidas):
+    """La media es a secas y el margen es el MAYOR entre la dispersión entre actividades y el
+    margen medio de cada una. Que no vuelva el √n por aquí: es el mismo error que ya se corrigió
+    en `combine_pairs`, y entre actividades distintas pesa más, no menos."""
+    actos = [estimate_activity(salidas[n], PARAMS) for n in COHERENTES]
+    media, margen = combine_activities(actos)
+    cdas = np.array([a.cda for a in actos])
+    dispersion = float(cdas.std(ddof=1))
+    formal = float(np.mean([a.incertidumbre for a in actos]))
+
+    assert media == pytest.approx(cdas.mean(), rel=1e-9)        # sin ponderar
+    assert margen == pytest.approx(max(dispersion, formal), rel=1e-9)
+    assert margen > dispersion / np.sqrt(len(actos)) * 1.5      # no es el error de la media
+
+
+def test_c33_combinar_no_estrecha_la_banda_al_añadir_actividades(salidas):
+    """El contraste con `combine_estimates`, que sí divide por √n y por tanto estrecha la banda
+    cuanto más se le echa. Aquí añadir actividades no puede estrechar nada por sí mismo: si lo
+    hiciera, la herramienta prometería precisión por acumular salidas, que es justo lo que el
+    método no da."""
+    actos = [estimate_activity(salidas[n], PARAMS) for n in COHERENTES]
+    margenes = [combine_activities(actos[:n])[1] for n in (1, 2, 3)]
+    menor = min(a.incertidumbre for a in actos)
+    assert all(m >= menor * 0.99 for m in margenes), (
+        f"combinar ha bajado el margen por debajo del de la mejor actividad: {margenes}")
+
+
+def test_c33_las_incoherentes_contaminan_la_media_y_por_eso_se_excluyen(salidas):
+    """La razón por la que la interfaz las deja fuera por defecto, medida: incluirlas mueve el
+    valor y ensancha el margen. Si algún día dejara de ser cierto, habría que revisar si sigue
+    teniendo sentido excluirlas, y este test lo haría notar."""
+    buenas = [estimate_activity(salidas[n], PARAMS) for n in COHERENTES]
+    todas = buenas + [estimate_activity(salidas[n], PARAMS) for n in INCOHERENTES]
+    cda_buenas, margen_buenas = combine_activities(buenas)
+    cda_todas, margen_todas = combine_activities(todas)
+
+    assert margen_todas > margen_buenas, (
+        f"incluir las incoherentes no ensancha el margen: {margen_buenas:.4f} -> "
+        f"{margen_todas:.4f}")
+    assert abs(cda_todas - cda_buenas) > 0.0005, (
+        f"incluir las incoherentes no mueve el valor: {cda_buenas:.4f} -> {cda_todas:.4f}")
+
+
+def test_c33_sin_pares_no_hay_cda_de_la_actividad(salidas):
+    """Una actividad sin ningún par de ida y vuelta devuelve `None` en vez de un número: un tramo
+    suelto lleva el viento dentro, así que no hay nada que combinar. Se fuerza con un umbral de
+    pares imposibles tan bajo que rechaza todos."""
+    act = estimate_activity(salidas["recorrido2_30mar2025"], PARAMS, max_razon_velocidad=1.0)
+    assert act is None
+
+
+def test_c33_el_detalle_de_la_actividad_se_recupera_sin_repetir_la_busqueda(salidas):
+    """Las listas de salida `pares` y `rechazados` existen para que la interfaz pueda enseñar el
+    detalle de una actividad sin volver a barrerla, que es la parte cara."""
+    pares: list = []
+    rechazados: list = []
+    act = estimate_activity(salidas["recorrido2_04may2025"], PARAMS,
+                            pares=pares, rechazados=rechazados)
+    assert act is not None
+    assert len(pares) == act.n_pares
+    assert len(rechazados) == act.n_rechazados
+    assert act.n_rechazados > 0, "la salida del 04-may tiene pares imposibles, deben registrarse"
+    assert all(isinstance(r, ParRechazado) for r in rechazados)
+
+
+def test_c33_la_tabla_por_actividad_se_construye_en_el_nucleo(salidas):
+    """Como la del criterio 26: la tabla vive en `core.exports` y se puede verificar sin
+    Streamlit. `incluida` y `coherente` son columnas distintas porque el usuario puede incluir a
+    mano una que el examen rechaza, y entonces hay que poder ver las dos cosas."""
+    actos = [estimate_activity(salidas[n], PARAMS) for n in TODAS]
+    tabla = tabla_actividades(actos)
+    assert list(tabla.columns) == list(COLUMNAS_ACTIVIDADES)
+    assert len(tabla) == len(TODAS)
+
+    # por defecto entran las coherentes y solo ellas
+    for fila in tabla.to_dict("records"):
+        assert (fila["incluida"] == fila["coherente"]), fila["actividad"]
+
+    # incluyendo una rechazada a mano, las dos columnas dejan de coincidir y se ve
+    forzada = {TODAS[0], INCOHERENTES[0]}
+    tabla2 = tabla_actividades(actos, incluidas=forzada)
+    filas = {f["actividad"]: f for f in tabla2.to_dict("records")}
+    assert filas[INCOHERENTES[0]]["incluida"] != filas[INCOHERENTES[0]]["coherente"]
+    assert csv_bytes(tabla2)

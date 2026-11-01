@@ -1,6 +1,6 @@
 # Calidad: cómo se ha revisado este código y en qué estado está
 
-La especificación (`../../simulador-ciclismo-triatlon.spec.md`) tiene 32 criterios de aceptación. El código se ha
+La especificación (`../../simulador-ciclismo-triatlon.spec.md`) tiene 33 criterios de aceptación. El código se ha
 sometido a cuatro revisiones independientes por revisores que no lo escribieron y recibieron el mismo
 encargo literal (desde la cuarta).
 

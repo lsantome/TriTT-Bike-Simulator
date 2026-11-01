@@ -32,6 +32,11 @@ project: **no number is ever presented on its own**, and anything unverified is 
 
 - Reads `.fit` files with GPS and power and estimates CdA by closing the energy balance, integrating
   interval by interval: it assumes neither constant speed nor constant gradient.
+- **Several activities at once**: upload as many `.fit` files as you like and it gives a combined
+  CdA with one row per activity. This is the method the calibration protocol recommends — at least
+  two coherent rides — and what it buys you is not a more precise central value but **the spread
+  between days**, which is the figure you actually need in order to trust a race prediction. The
+  on-screen notes state the conditions each activity must meet.
 - **Automatic search for reliable segments**: sweeps the activity in windows from 1 to 5 km, keeps
   the flat, fast, non-overlapping ones, and for each one locates **the return pass along the same
   road**. Averaging out and back is the only way to cancel the wind without modelling it.
@@ -76,7 +81,7 @@ project: **no number is ever presented on its own**, and anything unverified is 
   unverified claim.
 - **Core with no interface dependencies** (`core/`): the physics, the estimator and the tables can
   be used and verified without Streamlit.
-- **372 automated tests** tied to the 32 acceptance criteria of the specification.
+- **383 automated tests** tied to the 33 acceptance criteria of the specification.
 
 ## Requirements
 
@@ -112,7 +117,7 @@ minutes); later runs start straight away. If you clone the repository on macOS o
 |---|---|
 | `run.sh` / `run.bat` | opens the application in the browser |
 | `run.sh --estimador` / `run.bat --estimador` | starts directly in the CdA estimation module |
-| `run.sh --tests` | installs the test dependencies and runs the 372 tests |
+| `run.sh --tests` | installs the test dependencies and runs the 383 tests |
 | `run.sh --reinstalar` | rebuilds the environment from scratch |
 | `run.sh --reinstalar --tests` | both |
 
@@ -122,7 +127,7 @@ By hand, if you prefer:
 pip install -r requirements.txt          # app
 pip install -r requirements-dev.txt      # app + tests
 streamlit run app/streamlit_app.py       # from the project root
-python -m pytest -q                      # 372 tests
+python -m pytest -q                      # 383 tests
 ```
 
 The initial module can also be set by adding `?modo=estimador` to the URL.
@@ -158,14 +163,16 @@ They are chosen with the **What do you want to do** selector in the sidebar:
 
 | Module | Input | Output | Parameters it asks for |
 |---|---|---|---|
-| **CdA estimation** | one `.fit` activity | the CdA of that bike in that position, with its margin | 23 |
+| **CdA estimation** | one or more `.fit` activities | the CdA of that bike in that position, with its margin, plus the spread between activities | 23 |
 | **Race prediction** | the route GPX and a CdA | time, speed and power per segment | 40 |
 
 The order matters, because **CdA is an input to the prediction and it is the parameter that moves it
 most**: a prediction made with the default CdA is not a prediction of your bike.
 
-1. In the **estimation** module, upload an activity with the setup and position you intend to race
-   with, and with some flat stretch ridden in both directions. Press **🔍 Find reliable segments**.
+1. In the **estimation** module, upload **one or more** activities with the setup and position you
+   intend to race with, each with some flat stretch ridden in both directions. Two or more rides of
+   the same bike and setup are better than one: that is the only way to see how much your CdA moves
+   from day to day. Press **🔍 Find reliable segments**.
 2. Read the coherence verdict and the warnings **before** the number. If the activity does not
    qualify, neither does the CdA.
 3. Press the button to **apply that CdA**. It lands in the simulator as an editable field: use it as
@@ -442,8 +449,9 @@ core/                 Python/numpy core, no interface dependencies
   simulate.py         full simulation + per-km-block table
   metrics.py          average power, NP, VI, IF
   sensitivity.py      ±10 % sensitivity of each parameter
-  cda_estimator.py    CdA estimation: per segment, automatic search for flat segments
-                      and out-and-back pairing along the same road
+  cda_estimator.py    CdA estimation: per segment, automatic search for flat segments,
+                      out-and-back pairing along the same road, and combination of
+                      several activities
   coherence.py        activity coherence check: does it qualify for estimating?
   validation.py       .fit reading, replay of the real power and total-time fitting
   profiles.py         bike profiles (mass, CdA, Crr, η) with the provenance of the CdA
@@ -460,14 +468,14 @@ tests/                automated tests of the acceptance criteria
   fixtures/           5 real activities, reduced and anonymised; see their README
 packaging/windows/    self-contained Windows package: build script, launcher and end-user notes
 docs/calidad/         defect registry and independent reviews
-simulador-ciclismo-triatlon.spec.md       the specification and its 32 acceptance criteria
+simulador-ciclismo-triatlon.spec.md       the specification and its 33 acceptance criteria
 simulador-ciclismo-triatlon.validacion.md validation report with real data
 ```
 
 ## Tests
 
 ```bash
-python -m pytest -q        # 372 tests
+python -m pytest -q        # 383 tests
 run.sh --tests            # installs the test dependencies and runs them
 ```
 
@@ -512,6 +520,11 @@ de diseño del proyecto: **ningún número se presenta solo**, y lo que no está
 
 - Lee `.fit` con GPS y potencia y estima el CdA cerrando el balance de energía, integrando
   intervalo a intervalo: no supone velocidad ni pendiente constantes.
+- **Varias actividades a la vez**: puedes subir todos los `.fit` que quieras y da un CdA
+  combinado, con una fila por actividad. Es el método que recomienda el protocolo de calibración
+  —al menos dos salidas coherentes— y lo que aporta no es un valor central más preciso, sino **la
+  dispersión entre días**, que es la cifra que de verdad hace falta para fiarse de una predicción
+  de carrera. Las notas de la pantalla declaran las condiciones que debe cumplir cada actividad.
 - **Búsqueda automática de tramos fiables**: barre la actividad en ventanas de 1 a 5 km, se queda
   con los llanos, rápidos y sin solapes, y para cada uno localiza **la pasada de vuelta por la
   misma carretera**. Promediar ida y vuelta es la única forma de cancelar el viento sin modelarlo.
@@ -556,7 +569,7 @@ de diseño del proyecto: **ningún número se presenta solo**, y lo que no está
   ancha = margen del día o afirmación sin verificar.
 - **Núcleo sin dependencias de interfaz** (`core/`): la física, el estimador y las tablas se
   pueden usar y verificar sin Streamlit.
-- **372 tests automáticos** ligados a los 32 criterios de aceptación de la especificación.
+- **383 tests automáticos** ligados a los 33 criterios de aceptación de la especificación.
 
 ## Requisitos
 
@@ -592,7 +605,7 @@ dale permiso de ejecución con `chmod +x run.sh`.
 |---|---|
 | `run.sh` / `run.bat` | abre la aplicación en el navegador |
 | `run.sh --estimador` / `run.bat --estimador` | arranca directamente en el módulo de estimación de CdA |
-| `run.sh --tests` | instala las dependencias de test y ejecuta los 372 tests |
+| `run.sh --tests` | instala las dependencias de test y ejecuta los 383 tests |
 | `run.sh --reinstalar` | rehace el entorno desde cero |
 | `run.sh --reinstalar --tests` | las dos cosas |
 
@@ -602,7 +615,7 @@ A mano, si lo prefieres:
 pip install -r requirements.txt          # app
 pip install -r requirements-dev.txt      # app + tests
 streamlit run app/streamlit_app.py       # desde la raíz del proyecto
-python -m pytest -q                      # 372 tests
+python -m pytest -q                      # 383 tests
 ```
 
 También se puede fijar el módulo inicial añadiendo `?modo=estimador` a la URL.
@@ -640,15 +653,16 @@ Se eligen con el selector **Qué quieres hacer** de la barra lateral:
 
 | Módulo | Entra | Sale | Parámetros que pide |
 |---|---|---|---|
-| **Estimación de CdA** | una actividad `.fit` | el CdA de esa bici en esa posición, con su margen | 23 |
+| **Estimación de CdA** | una o varias actividades `.fit` | el CdA de esa bici en esa posición, con su margen, y la dispersión entre actividades | 23 |
 | **Predicción de carrera** | el GPX del recorrido y un CdA | tiempo, velocidad y potencia por tramo | 40 |
 
 El orden importa, porque **el CdA es una entrada de la predicción y es el parámetro que más la
 mueve**: una predicción hecha con el CdA por defecto no es una predicción de tu bici.
 
-1. En el módulo de **estimación**, sube una actividad con el montaje y la posición que vas a llevar
-   en carrera, y con algún tramo llano recorrido en los dos sentidos. Pulsa
-   **🔍 Buscar tramos fiables**.
+1. En el módulo de **estimación**, sube **una o varias** actividades con el montaje y la posición
+   que vas a llevar en carrera, cada una con algún tramo llano recorrido en los dos sentidos. Dos
+   salidas o más de la misma bici y el mismo montaje valen más que una: es la única forma de ver
+   cuánto baila tu CdA de un día a otro. Pulsa **🔍 Buscar tramos fiables**.
 2. Lee el veredicto de coherencia y los avisos **antes** del número. Si la actividad no sirve, el
    CdA tampoco.
 3. Pulsa el botón para **aplicar ese CdA**. Queda puesto en el simulador como un campo editable:
@@ -928,8 +942,9 @@ core/                 núcleo en Python/numpy, sin dependencias de interfaz
   simulate.py         simulación completa + tabla por bloques de km
   metrics.py          potencia media, NP, VI, IF
   sensitivity.py      sensibilidad ±10 % de cada parámetro
-  cda_estimator.py    estimación del CdA: por segmento, búsqueda automática de tramos llanos
-                      y emparejado de ida y vuelta por la misma carretera
+  cda_estimator.py    estimación del CdA: por segmento, búsqueda automática de tramos llanos,
+                      emparejado de ida y vuelta por la misma carretera y combinación
+                      de varias actividades
   coherence.py        examen de coherencia de una actividad: ¿sirve para estimar con ella?
   validation.py       lectura de .fit, reproducción de la potencia real y ajuste por tiempo total
   profiles.py         perfiles de bici (masa, CdA, Crr, η) con el origen del CdA
@@ -946,14 +961,14 @@ tests/                tests automáticos de los criterios de aceptación
   fixtures/           5 actividades reales reducidas y anonimizadas; ver su README
 packaging/windows/    paquete autocontenido de Windows: script de construcción, lanzador y LEEME
 docs/calidad/         registro de defectos y revisiones independientes
-simulador-ciclismo-triatlon.spec.md       especificación y sus 32 criterios de aceptación
+simulador-ciclismo-triatlon.spec.md       especificación y sus 33 criterios de aceptación
 simulador-ciclismo-triatlon.validacion.md informe de validación con datos reales
 ```
 
 ## Tests
 
 ```bash
-python -m pytest -q        # 372 tests
+python -m pytest -q        # 383 tests
 run.sh --tests            # instala las dependencias de test y los ejecuta
 ```
 

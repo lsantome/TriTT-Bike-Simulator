@@ -269,6 +269,9 @@ COLUMNAS: Dict[str, Dict[str, str]] = {
     "err_potencia": {"es": "error potencia", "en": "power error"},
     "densidad_aire": {"es": "densidad aire", "en": "air density"},
     "actividad": {"es": "actividad", "en": "activity"},
+    "incluida": {"es": "en la media", "en": "in the average"},
+    "n_pares": {"es": "pares", "en": "pairs"},
+    "pares_descartados": {"es": "pares descartados", "en": "pairs rejected"},
     "ida_km": {"es": "ida (km)", "en": "outbound (km)"},
     "rumbo_ida": {"es": "rumbo ida", "en": "outbound bearing"},
     "cda_ida": {"es": "CdA ida", "en": "outbound CdA"},
@@ -597,8 +600,136 @@ UI: Dict[str, Dict[str, str]] = {
               "tool closes the energy balance over it (pedals − elevation − rolling − inertia = "
               "aerodynamics). **Read the warnings**: on a short, slow or hilly segment the "
               "elevation weighs more than the air and the number is worthless."},
-    "est_subir": {"es": "Actividad (.fit) con GPS y potencia",
-                  "en": "Activity (.fit) with GPS and power"},
+    "est_subir": {"es": "Actividades (.fit) con GPS y potencia — puedes subir varias",
+                  "en": "Activities (.fit) with GPS and power — you can upload several"},
+    "est_requisitos_titulo": {
+        "es": "📋 Cómo deben ser las actividades que subas (importante)",
+        "en": "📋 What the activities you upload must look like (important)"},
+    "est_requisitos": {
+        "es": "El CdA no se mide: se **estima** cerrando el balance de energía, así que todo lo "
+              "que el modelo no nombra acaba dentro del número. Estas condiciones son lo que "
+              "separa una estimación de tu aerodinámica de una estimación del viento que hizo ese "
+              "día.\n\n"
+              "**La actividad:**\n"
+              "- **Ida y vuelta por la misma carretera.** Es la condición que de verdad importa. "
+              "El viento no está en el modelo y entra entero en el CdA: 1 m/s lo mueve unos "
+              "±0,04–0,06 m², más que todos los demás errores juntos. Solo se cancela promediando "
+              "un tramo de ida con el mismo de vuelta. Sin ida y vuelta no hay nada que combinar y "
+              "la herramienta no dará un valor recomendado.\n"
+              "- **Con algún tramo llano y rápido**, de 1 km o más, a 25 km/h o más. En cuesta, "
+              "despacio o en tramos cortos, el desnivel pesa más que el aire y un error de un "
+              "metro de altitud se traga la estimación.\n"
+              "- **Potencia y GPS en el fichero.** Sin potenciómetro no hay balance de energía.\n"
+              "- **Sin rebufo:** nadie delante, ni ciclistas ni vehículos. El rebufo no se "
+              "distingue del viento y baja el CdA sin que nada lo avise.\n"
+              "- **Sin paradas ni tráfico** en los tramos que vayan a servir, y pedaleando: un "
+              "tramo con la mitad del tiempo sin pedalear no sirve.\n"
+              "- **Mejor altitud barométrica** que la del GPS. El error de altímetro es la segunda "
+              "fuente de incertidumbre.\n\n"
+              "**El montaje, y esto es lo que más se descuida:**\n"
+              "- **La misma bici, las mismas ruedas y la misma presión** de neumáticos.\n"
+              "- **La misma ropa, el mismo casco y la misma posición.** Lo que llevas puesto no es "
+              "un parámetro del modelo: está dentro del CdA. Un maillot distinto es otro CdA.\n"
+              "- **La posición que vas a llevar en carrera.** Un CdA de entrenamiento no sirve "
+              "para predecir una contrarreloj.\n\n"
+              "**Si subes varias actividades:** tienen que ser **de la misma bici y con el mismo "
+              "montaje**, porque se promedian entre sí. Dos salidas con cascos distintos dan un "
+              "número que no describe ninguna de las dos. Lo que puede y debe cambiar es el día: "
+              "de eso sale precisamente la dispersión, que es lo que te dice cuánto te puedes "
+              "fiar.",
+        "en": "CdA is not measured: it is **estimated** by closing the energy balance, so "
+              "everything the model does not name ends up inside the number. These conditions are "
+              "what separates estimating your aerodynamics from estimating the wind that blew "
+              "that day.\n\n"
+              "**The activity:**\n"
+              "- **Out and back along the same road.** This is the condition that really matters. "
+              "Wind is not in the model and goes entirely into the CdA: 1 m/s shifts it by about "
+              "±0.04–0.06 m², more than all the other errors put together. It only cancels by "
+              "averaging an outbound stretch with the same stretch inbound. With no out-and-back "
+              "there is nothing to combine and the tool will not give a recommended value.\n"
+              "- **With some flat, fast stretch**, 1 km or longer, at 25 km/h or more. Uphill, "
+              "slowly or on short stretches the elevation weighs more than the air and a "
+              "one-metre altitude error swallows the estimate.\n"
+              "- **Power and GPS in the file.** Without a power meter there is no energy "
+              "balance.\n"
+              "- **No drafting:** nobody ahead of you, neither riders nor vehicles. Drafting is "
+              "indistinguishable from wind and lowers the CdA with nothing to warn you.\n"
+              "- **No stops and no traffic** on the stretches that will be used, and pedalling: a "
+              "stretch with half the time spent not pedalling is of no use.\n"
+              "- **Barometric altitude is better** than GPS altitude. Altimeter error is the "
+              "second source of uncertainty.\n\n"
+              "**The setup, and this is what gets overlooked most:**\n"
+              "- **The same bike, the same wheels and the same tyre pressure.**\n"
+              "- **The same clothing, the same helmet and the same position.** What you wear is "
+              "not a model parameter: it is inside the CdA. A different jersey is a different "
+              "CdA.\n"
+              "- **The position you will race in.** A training CdA is no good for predicting a "
+              "time trial.\n\n"
+              "**If you upload several activities:** they must be **from the same bike with the "
+              "same setup**, because they are averaged together. Two rides with different helmets "
+              "give a number that describes neither. What can and should change is the day: that "
+              "is exactly where the spread comes from, and the spread is what tells you how much "
+              "to trust the number."},
+    "est_elegir_actividad": {"es": "Actividad que se detalla abajo",
+                             "en": "Activity detailed below"},
+    "est_act_titulo": {"es": "#### Resumen por actividad ({n})",
+                       "en": "#### Summary by activity ({n})"},
+    "est_act_examinando": {"es": "Analizando {nombre} ({i} de {total})…",
+                           "en": "Analysing {nombre} ({i} of {total})…"},
+    "est_act_nota": {
+        "es": "Una fila por actividad: su CdA sale de promediar sus pares de ida y vuelta, y el ± "
+              "es la dispersión entre esos pares. Las que no pasan el examen de coherencia quedan "
+              "**fuera de la media** por defecto.",
+        "en": "One row per activity: its CdA comes from averaging its out-and-back pairs, and the "
+              "± is the spread between those pairs. Those that fail the coherence check are left "
+              "**out of the average** by default."},
+    "est_act_sin_pares": {
+        "es": "**{nombre}** no tiene ningún par de ida y vuelta: no entra. Un tramo suelto lleva "
+              "el viento dentro, así que no hay CdA que defender con esta actividad.",
+        "en": "**{nombre}** has no out-and-back pair, so it is left out. An isolated stretch "
+              "carries the wind inside it, so there is no CdA to defend from this activity."},
+    "est_act_excluidas": {
+        "es": "{n} de {total} actividades quedan fuera de la media porque el examen de coherencia "
+              "las rechaza. El motivo de cada una está en su fila.",
+        "en": "{n} of {total} activities are left out of the average because the coherence check "
+              "rejects them. The reason for each is in its row."},
+    "est_act_incluir": {
+        "es": "Incluir también las actividades rechazadas (no recomendado)",
+        "en": "Include the rejected activities too (not recommended)"},
+    "est_act_incluir_ayuda": {
+        "es": "Meterían el viento de su día en el parámetro. Medido con las actividades de "
+              "referencia: incluirlas baja el CdA y además ensancha el margen.",
+        "en": "They would inject the wind of their day into the parameter. Measured on the "
+              "reference activities: including them lowers the CdA and widens the margin too."},
+    "est_act_ninguna": {
+        "es": "Ninguna de las actividades cargadas pasa el examen de coherencia, así que no hay "
+              "valor combinado. Sube alguna salida más, o revisa el motivo de cada fila.",
+        "en": "None of the uploaded activities passes the coherence check, so there is no combined "
+              "value. Upload another ride, or look at the reason in each row."},
+    "est_act_una_sola": {
+        "es": "Con una sola actividad no hay dispersión entre días: el margen que ves es el de sus "
+              "pares, y no incluye el viento. Sube al menos dos salidas del mismo montaje para "
+              "saber cuánto baila tu CdA de un día a otro.",
+        "en": "With a single activity there is no spread between days: the margin you see is the "
+              "one from its pairs, and it does not include the wind. Upload at least two rides "
+              "with the same setup to find out how much your CdA moves from day to day."},
+    "est_act_lectura_cab": {"es": "CdA combinado de {n} actividades",
+                            "en": "Combined CdA of {n} activities"},
+    "est_act_m_actividades": {"es": "actividades", "en": "activities"},
+    "est_act_m_pares": {"es": "pares en total", "en": "pairs in total"},
+    "est_act_m_dispersion": {"es": "dispersión entre días", "en": "spread between days"},
+    "est_act_banda": {
+        "es": "±{inc:.3f} m²: el mayor entre la dispersión entre actividades y el margen medio de "
+              "cada una",
+        "en": "±{inc:.3f} m²: the larger of the spread between activities and the mean margin of "
+              "each one"},
+    "est_act_descargar": {"es": "Descargar el resumen por actividad (CSV)",
+                          "en": "Download the summary by activity (CSV)"},
+    "est_aplicar_actividades": {"es": "Aplicar este CdA combinado en la barra lateral",
+                                "en": "Apply this combined CdA in the sidebar"},
+    "est_origen_actividades": {
+        "es": "estimado con los pares de ida y vuelta de {n} actividades ({lista})",
+        "en": "estimated from the out-and-back pairs of {n} activities ({lista})"},
     "est_sube_fit": {
         "es": "Sube un .fit para empezar. Lo ideal: un tramo llano, rápido, sin tráfico y, mejor "
               "aún, el mismo tramo de ida y de vuelta para cancelar el viento.",
