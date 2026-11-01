@@ -424,8 +424,8 @@ FIXTURE_FIT = Path(__file__).resolve().parent / "fixtures" / "recorrido2_30mar20
 
 def _con_fit_cargado(timeout=180):
     at = _simulada(timeout)
-    at.file_uploader(key="est_fit").set_value(
-        (FIXTURE_FIT.name, FIXTURE_FIT.read_bytes(), "application/octet-stream"))
+    at.file_uploader(key="est_fits").set_value(
+        [(FIXTURE_FIT.name, FIXTURE_FIT.read_bytes(), "application/octet-stream")])
     return at.run()
 
 
@@ -816,8 +816,8 @@ def test_c30_un_cda_fuera_de_rango_se_avisa_siempre():
 
 def test_c28_los_pares_imposibles_se_enseñan_en_el_estimador():
     at = _simulada(300)
-    at.file_uploader(key="est_fit").set_value(
-        (FIXTURE_PARES_MALOS.name, FIXTURE_PARES_MALOS.read_bytes(), "application/octet-stream"))
+    at.file_uploader(key="est_fits").set_value(
+        [(FIXTURE_PARES_MALOS.name, FIXTURE_PARES_MALOS.read_bytes(), "application/octet-stream")])
     at = at.run()
     next(b for b in at.button if "Buscar tramos" in b.label).click().run()
     assert not at.exception, at.exception
@@ -830,3 +830,90 @@ def test_c28_los_pares_imposibles_se_enseñan_en_el_estimador():
     # y el CdA recomendado sigue siendo plausible pese a la actividad problemática
     bloque = _lectura(at, "CdA de esta bici")
     assert 0.20 < float(re.search(r'class="cifra">([\d.]+)<', bloque).group(1)) < 0.35, bloque[:160]
+
+
+# --------------------------------------------------------------------------- criterio 33
+FIXTURE_COHERENTE_2 = Path(__file__).resolve().parent / "fixtures" / "recorrido2_06abr2025.fit"
+
+
+def _subidas(ficheros, timeout=600):
+    at = _simulada(timeout)
+    at.file_uploader(key="est_fits").set_value(
+        [(f.name, f.read_bytes(), "application/octet-stream") for f in ficheros])
+    return at.run()
+
+
+def test_c33_las_condiciones_de_la_actividad_estan_en_la_pantalla():
+    """Las condiciones que debe cumplir un `.fit` no pueden vivir solo en el README: se leen
+    donde se sube el fichero. Se exige el fondo, no una redacción concreta: ida y vuelta, mismo
+    montaje (ropa incluida), potencia, rebufo y que varias actividades sean de la misma bici."""
+    at = _simulada(120)
+    texto = " ".join(m.value for m in at.markdown).lower()
+    for esperado in ("ida y vuelta", "ropa", "casco", "posición", "potenciómetro", "rebufo",
+                     "presión", "misma bici"):
+        assert esperado in texto, f"la pantalla del estimador no menciona «{esperado}»"
+
+
+def test_c33_se_pueden_subir_varias_actividades_y_sale_un_cda_combinado():
+    at = _subidas([FIXTURE_FIT, FIXTURE_COHERENTE_2])
+    assert not at.exception
+    # con dos actividades hay selector para elegir cuál se detalla
+    assert at.selectbox(key="est_activa").options == [FIXTURE_FIT.name, FIXTURE_COHERENTE_2.name]
+    next(b for b in at.button if "Buscar tramos" in b.label).click().run()
+    assert not at.exception
+
+    actividades = at.session_state["est_actividades"]
+    assert len(actividades) == 2
+    assert all(a["coherente"] for a in actividades)
+
+    # el valor combinado se puede llevar al simulador, y arrastra su origen y las dos actividades
+    boton = next(b for b in at.button if b.key == "btn_aplicar_actividades")
+    boton.click().run()
+    assert not at.exception
+    origen = at.session_state["cda_de_estimador"]
+    assert FIXTURE_FIT.name in origen and FIXTURE_COHERENTE_2.name in origen
+    assert at.session_state["perfil_calibrado"] is True
+    assert not at.session_state["cda_cal_incoherente"]       # las dos son coherentes
+
+    from core.cda_estimator import ActivityEstimate, combine_activities
+    esperado, _ = combine_activities([ActivityEstimate(**a) for a in actividades])
+    assert at.session_state["p_cda"] == pytest.approx(round(esperado, 3))
+
+
+def test_c33_una_actividad_incoherente_queda_fuera_de_la_media():
+    """Lo que de verdad protege el valor combinado: la incoherente no entra sola en la media, y
+    el motivo se enseña. Si entrara, metería el viento de su día en el parámetro."""
+    at = _subidas([FIXTURE_FIT, FIXTURE_INCOHERENTE])
+    next(b for b in at.button if "Buscar tramos" in b.label).click().run()
+    assert not at.exception
+
+    actividades = {a["nombre"]: a for a in at.session_state["est_actividades"]}
+    assert actividades[FIXTURE_FIT.name]["coherente"] is True
+    assert actividades[FIXTURE_INCOHERENTE.name]["coherente"] is False
+
+    # queda una sola actividad en la media, así que no hay valor combinado que aplicar
+    assert not any(b.key == "btn_aplicar_actividades" for b in at.button)
+    assert any("coherencia" in w.value.lower() for w in at.warning), (
+        "no se avisa de que una actividad queda fuera")
+
+    # y se puede forzar su inclusión, que entonces sí da combinado
+    at.checkbox(key="est_incluir_malas").set_value(True).run()
+    assert not at.exception
+    next(b for b in at.button if b.key == "btn_aplicar_actividades").click().run()
+    assert at.session_state["cda_cal_incoherente"] == [FIXTURE_INCOHERENTE.name]
+
+
+def test_c33_con_una_sola_actividad_se_dice_que_no_hay_dispersion():
+    """El flujo de un solo fichero no cambia, y además se declara lo que falta: con una actividad
+    el margen es el de sus pares y no incluye el viento."""
+    at = _subidas([FIXTURE_FIT])
+    assert not at.exception
+    # con una sola actividad no se dibuja el selector (hay otros en la barra lateral, de ahí que
+    # se compruebe la clave y no que la lista esté vacía)
+    assert not any(s.key == "est_activa" for s in at.selectbox)
+    next(b for b in at.button if "Buscar tramos" in b.label).click().run()
+    assert not at.exception
+    assert not any(b.key == "btn_aplicar_actividades" for b in at.button)
+    assert any(b.key == "btn_aplicar_pares" for b in at.button)
+    textos = " ".join(i.value for i in at.info).lower()
+    assert "dispersión" in textos or "al menos dos" in textos

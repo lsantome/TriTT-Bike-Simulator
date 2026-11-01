@@ -253,8 +253,8 @@ def test_c31_el_cda_medido_pasa_al_simulador_y_se_puede_corregir():
     at = at.run()
     at.number_input(key="p_masa_total").set_value(MASA)
     at = at.run()
-    at.file_uploader(key="est_fit").set_value(
-        (fixture.name, fixture.read_bytes(), "application/octet-stream"))
+    at.file_uploader(key="est_fits").set_value(
+        [(fixture.name, fixture.read_bytes(), "application/octet-stream")])
     at = at.run()
     next(b for b in at.button if "Buscar tramos" in b.label).click().run()
     next(b for b in at.button if b.key == "btn_aplicar_pares").click().run()
@@ -301,8 +301,8 @@ def test_c30_el_camino_recomendado_tambien_examina_la_coherencia():
     at = at.run()
     at.number_input(key="p_masa_total").set_value(MASA)
     at = at.run()
-    at.file_uploader(key="est_fit").set_value(
-        (fixture.name, fixture.read_bytes(), "application/octet-stream"))
+    at.file_uploader(key="est_fits").set_value(
+        [(fixture.name, fixture.read_bytes(), "application/octet-stream")])
     at = at.run()
     next(b for b in at.button if "Buscar tramos" in b.label).click().run()
     assert not at.exception, at.exception
@@ -328,8 +328,8 @@ def test_c30_una_actividad_coherente_no_dispara_el_aviso_al_guardar():
     at = at.run()
     at.number_input(key="p_masa_total").set_value(MASA)
     at = at.run()
-    at.file_uploader(key="est_fit").set_value(
-        (fixture.name, fixture.read_bytes(), "application/octet-stream"))
+    at.file_uploader(key="est_fits").set_value(
+        [(fixture.name, fixture.read_bytes(), "application/octet-stream")])
     at = at.run()
     next(b for b in at.button if "Buscar tramos" in b.label).click().run()
     next(b for b in at.button if b.key == "btn_aplicar_pares").click().run()
