@@ -917,3 +917,62 @@ def test_c33_con_una_sola_actividad_se_dice_que_no_hay_dispersion():
     assert any(b.key == "btn_aplicar_pares" for b in at.button)
     textos = " ".join(i.value for i in at.info).lower()
     assert "dispersión" in textos or "al menos dos" in textos
+
+
+# --------------------------------------------------------------------------- criterio 15 (robustez)
+def test_c15_un_perfil_con_un_valor_imposible_no_rompe_la_aplicacion(perfiles_aislados):
+    """Lo encontró Luis el 1-nov-2026 en el paquete de Windows: un perfil cuyo `etrto` traía la
+    etiqueta visible («28-622 · 700x28C — carretera / triatlón») en vez del código, al cargarlo,
+    dejaba la aplicación con «Parámetros no válidos» y un `st.stop()`, es decir, inservible — y
+    acusando a un valor que a la vista parece perfectamente correcto.
+
+    `load_profiles` comprobaba la estructura del JSON pero no los valores. Un perfil es un fichero
+    en disco que se edita, se copia entre máquinas y sobrevive a versiones: es una frontera, y en
+    una frontera se valida. La etiqueta se repara porque la correspondencia con su código es
+    unívoca; lo que no se pueda reparar se descarta.
+    """
+    import json
+
+    from core.params import Params
+    from core.profiles import load_profiles, profile_from_params, save_profile
+
+    save_profile(profile_from_params("Mi bici", Params(masa_total=MASA, cda=0.261),
+                                     origen_cda="prueba de robustez", calibrado=True),
+                 perfiles_aislados)
+    # el fichero de perfiles se comparte con otros tests, así que se busca por nombre y no por
+    # posición: con el índice se corrompía el perfil de otro test y este no probaba nada
+    crudo = json.loads(Path(perfiles_aislados).read_text(encoding="utf-8"))
+    mio = next(d for d in crudo if d["nombre"] == "Mi bici")
+    assert mio["etrto"] == "28-622", "la app debe guardar el código, no la etiqueta"
+    mio["etrto"] = "28-622 · 700x28C — carretera / triatlón"
+    Path(perfiles_aislados).write_text(json.dumps(crudo, ensure_ascii=False), encoding="utf-8")
+
+    # al leerlo, la etiqueta vuelve a su código
+    assert load_profiles(perfiles_aislados)["Mi bici"].etrto == "28-622"
+
+    # y la aplicación carga el perfil sin romperse
+    at = _simulada(180)
+    at.segmented_control(key="modulo").set_value("estimador").run()
+    next(b for b in at.button if b.label == "Cargar").click().run()
+    assert not at.exception
+    assert at.session_state["p_etrto"] == "28-622"
+    assert not [e for e in at.error if "no es válido" in e.value], [e.value for e in at.error]
+
+
+def test_c15_un_perfil_irrecuperable_se_descarta_en_vez_de_envenenar_la_interfaz(perfiles_aislados):
+    """El otro lado de la misma moneda: si el valor no se puede reparar, el perfil no entra. Antes
+    entraba y la pantalla se quedaba en el error."""
+    import json
+
+    from core.params import Params
+    from core.profiles import load_profiles, profile_from_params, save_profile
+
+    save_profile(profile_from_params("Rota", Params(masa_total=MASA)), perfiles_aislados)
+    crudo = json.loads(Path(perfiles_aislados).read_text(encoding="utf-8"))
+    next(d for d in crudo if d["nombre"] == "Rota")["cda"] = 99.0   # fuera de rango plausible
+    Path(perfiles_aislados).write_text(json.dumps(crudo, ensure_ascii=False), encoding="utf-8")
+
+    assert "Rota" not in load_profiles(perfiles_aislados)
+    at = _simulada(120)
+    assert not at.exception
+    assert not [e for e in at.error if "no es válido" in e.value]

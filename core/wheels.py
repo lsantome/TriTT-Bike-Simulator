@@ -25,7 +25,7 @@ from typing import Dict, Tuple
 #: y el docstring de `label_for` afirmaba lo contrario. El código ETRTO es normativo y no cambia.
 ETRTO_SIZES: Tuple[Tuple[str, str, str], ...] = (
     ("23-622", "700x23C — carretera", "700x23C — road"),
-    ("25-622", "700x25C — carretera (lo más común)", "700x25C — road (the most common)"),
+    ("25-622", "700x25C — carretera", "700x25C — road"),
     ("28-622", "700x28C — carretera / triatlón", "700x28C — road / triathlon"),
     ("30-622", "700x30C", "700x30C"),
     ("32-622", "700x32C — gravel ligero", "700x32C — light gravel"),
@@ -62,7 +62,7 @@ def etrto_codes() -> Tuple[str, ...]:
 
 
 def etrto_labels(idioma: str = "es") -> Tuple[str, ...]:
-    """Etiquetas para el desplegable: «25-622 · 700x25C — carretera (lo más común)»."""
+    """Etiquetas para el desplegable: «25-622 · 700x25C — carretera»."""
     return tuple(label_for(code, idioma) for code in etrto_codes())
 
 

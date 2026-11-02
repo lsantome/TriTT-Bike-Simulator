@@ -81,7 +81,7 @@ project: **no number is ever presented on its own**, and anything unverified is 
   unverified claim.
 - **Core with no interface dependencies** (`core/`): the physics, the estimator and the tables can
   be used and verified without Streamlit.
-- **383 automated tests** tied to the 33 acceptance criteria of the specification.
+- **385 automated tests** tied to the 33 acceptance criteria of the specification.
 
 ## Requirements
 
@@ -117,7 +117,7 @@ minutes); later runs start straight away. If you clone the repository on macOS o
 |---|---|
 | `run.sh` / `run.bat` | opens the application in the browser |
 | `run.sh --estimador` / `run.bat --estimador` | starts directly in the CdA estimation module |
-| `run.sh --tests` | installs the test dependencies and runs the 383 tests |
+| `run.sh --tests` | installs the test dependencies and runs the 385 tests |
 | `run.sh --reinstalar` | rebuilds the environment from scratch |
 | `run.sh --reinstalar --tests` | both |
 
@@ -127,7 +127,7 @@ By hand, if you prefer:
 pip install -r requirements.txt          # app
 pip install -r requirements-dev.txt      # app + tests
 streamlit run app/streamlit_app.py       # from the project root
-python -m pytest -q                      # 383 tests
+python -m pytest -q                      # 385 tests
 ```
 
 The initial module can also be set by adding `?modo=estimador` to the URL.
@@ -475,7 +475,7 @@ simulador-ciclismo-triatlon.validacion.md validation report with real data
 ## Tests
 
 ```bash
-python -m pytest -q        # 383 tests
+python -m pytest -q        # 385 tests
 run.sh --tests            # installs the test dependencies and runs them
 ```
 
@@ -569,7 +569,7 @@ de diseño del proyecto: **ningún número se presenta solo**, y lo que no está
   ancha = margen del día o afirmación sin verificar.
 - **Núcleo sin dependencias de interfaz** (`core/`): la física, el estimador y las tablas se
   pueden usar y verificar sin Streamlit.
-- **383 tests automáticos** ligados a los 33 criterios de aceptación de la especificación.
+- **385 tests automáticos** ligados a los 33 criterios de aceptación de la especificación.
 
 ## Requisitos
 
@@ -605,7 +605,7 @@ dale permiso de ejecución con `chmod +x run.sh`.
 |---|---|
 | `run.sh` / `run.bat` | abre la aplicación en el navegador |
 | `run.sh --estimador` / `run.bat --estimador` | arranca directamente en el módulo de estimación de CdA |
-| `run.sh --tests` | instala las dependencias de test y ejecuta los 383 tests |
+| `run.sh --tests` | instala las dependencias de test y ejecuta los 385 tests |
 | `run.sh --reinstalar` | rehace el entorno desde cero |
 | `run.sh --reinstalar --tests` | las dos cosas |
 
@@ -615,7 +615,7 @@ A mano, si lo prefieres:
 pip install -r requirements.txt          # app
 pip install -r requirements-dev.txt      # app + tests
 streamlit run app/streamlit_app.py       # desde la raíz del proyecto
-python -m pytest -q                      # 383 tests
+python -m pytest -q                      # 385 tests
 ```
 
 También se puede fijar el módulo inicial añadiendo `?modo=estimador` a la URL.
@@ -968,7 +968,7 @@ simulador-ciclismo-triatlon.validacion.md informe de validación con datos reale
 ## Tests
 
 ```bash
-python -m pytest -q        # 383 tests
+python -m pytest -q        # 385 tests
 run.sh --tests            # instala las dependencias de test y los ejecuta
 ```
 

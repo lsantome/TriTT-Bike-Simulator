@@ -56,6 +56,47 @@ def profiles_path() -> Path:
     return Path(env) if env else _DEFAULT_PATH
 
 
+def _repara_opciones(prof: "BikeProfile") -> None:
+    """Devuelve a su código las opciones que vengan escritas con su etiqueta visible.
+
+    La medida de rueda se **guarda** por su código (`28-622`) y se **enseña** por su etiqueta
+    (`28-622 · 700x28C — carretera / triatlón`). Si por lo que sea un perfil llega con la
+    etiqueta, la correspondencia es unívoca y se deshace sin ambigüedad. Reparar esto es
+    preferible a descartar el perfil entero por un detalle de presentación.
+    """
+    from .wheels import etrto_codes, label_for
+
+    if prof.etrto in etrto_codes() or prof.etrto == "manual":
+        return
+    for codigo in tuple(etrto_codes()) + ("manual",):
+        if any(prof.etrto == label_for(codigo, idioma) for idioma in ("es", "en")):
+            prof.etrto = codigo
+            return
+
+
+def _valores_validos(prof: "BikeProfile") -> bool:
+    """¿Este perfil produce unos parámetros que el modelo acepta?
+
+    **El límite que faltaba.** `load_profiles` comprobaba la estructura —que estén los campos y
+    que el JSON no esté roto— pero no los **valores**, así que un perfil con un valor imposible
+    entraba tal cual en la interfaz: `_cargar_perfil` lo escribía en `session_state`, el widget lo
+    aceptaba y `validate_params` lo rechazaba más abajo con un `st.stop()` que deja la pantalla
+    con un error y sin resultado. Lo encontró Luis el 1-nov-2026 con un perfil cuyo `etrto` traía
+    la etiqueta en vez del código: la aplicación quedaba inservible hasta pulsar «Borrar», y el
+    mensaje acusaba a un valor que a la vista parece correcto.
+
+    Un perfil es un fichero en disco que cualquiera puede editar, copiar de otra máquina o
+    arrastrar desde una versión anterior: es una frontera, y en una frontera se valida.
+    """
+    from .params import validate_params
+
+    try:
+        validate_params(Params(**{k: getattr(prof, k) for k in PROFILE_KEYS}))
+    except (ParamError, TypeError, ValueError):
+        return False
+    return True
+
+
 def profile_from_params(nombre: str, params: Params, *, origen_cda: str = "",
                         calibrado: bool = False) -> BikeProfile:
     """Extrae de unos parámetros lo que pertenece a la bici."""
@@ -103,6 +144,9 @@ def load_profiles(path: Optional[Path] = None) -> Dict[str, BikeProfile]:
             # editado a mano o escrito por una versión anterior: se degrada, no se cree
             prof.calibrado = False
             prof.origen_cda = "sin calibrar (el perfil guardado no indicaba su origen)"
+        _repara_opciones(prof)
+        if not _valores_validos(prof):
+            continue              # valores imposibles: se ignora, igual que uno incompleto
         out[prof.nombre] = prof
     return out
 

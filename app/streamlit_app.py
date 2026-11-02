@@ -706,19 +706,29 @@ with tab_est:
             # recomienda sale de combinarlas. El detalle de cada una (sus pares y los descartados)
             # se guarda por el camino, porque la búsqueda es la parte cara y repetirla para
             # enseñar el detalle de la activa sería hacer dos veces el mismo trabajo.
+            # Progreso con barra y no solo con el girador: el barrido tarda del orden de medio
+            # minuto por actividad, y con varias cargadas un girador sin fin se lee como
+            # «colgada». La barra avanza al terminar cada fichero y dice cuál va; el aviso de
+            # debajo adelanta lo que va a tardar, que es la mitad de no parecer colgada.
             resumenes, detalle = [], {}
+            barra = st.progress(0.0, text=t("est_act_examinando", IDIOMA, nombre=nombres[0],
+                                            i=1, total=len(nombres)))
+            if len(nombres) > 1:
+                st.caption(t("est_act_tarda", IDIOMA, n=len(nombres)))
             for i, nombre in enumerate(nombres, start=1):
-                with st.spinner(t("est_act_examinando", IDIOMA, nombre=nombre, i=i,
-                                   total=len(nombres))):
-                    pares_n: list = []
-                    rech_n: list = []
-                    act = estimate_activity(rides[nombre], params, pares=pares_n,
-                                            rechazados=rech_n, idioma=IDIOMA)
+                barra.progress((i - 1) / len(nombres),
+                               text=t("est_act_examinando", IDIOMA, nombre=nombre, i=i,
+                                      total=len(nombres)))
+                pares_n: list = []
+                rech_n: list = []
+                act = estimate_activity(rides[nombre], params, pares=pares_n,
+                                        rechazados=rech_n, idioma=IDIOMA)
                 detalle[nombre] = {"pares": pares_n, "rechazados": [r.motivo for r in rech_n]}
                 if act is not None:
                     resumenes.append(act.as_dict())
                 else:
                     st.warning(t("est_act_sin_pares", IDIOMA, nombre=nombre))
+            barra.progress(1.0, text=t("est_act_listo", IDIOMA, n=len(nombres)))
             st.session_state["est_actividades"] = resumenes
             st.session_state["est_detalle"] = detalle
             # Criterio 30: la actividad pasa por el examen de coherencia, aquí y en el camino
